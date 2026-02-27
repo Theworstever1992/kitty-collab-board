@@ -1,0 +1,14 @@
+# .gitignore — Kitty Collab Board
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+logs/*.log
+board/board.json
+board/agents.json
+.venv/
+venv/
+*.spec.bak
