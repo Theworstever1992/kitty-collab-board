@@ -38,6 +38,15 @@ python mission_control.py
 
 The Docker setup automatically mounts your local `board/` and `logs/` folders, so you can still use the local `mission_control.py` and see the logs on your host machine.
 
+### Pulling from GitHub Container Registry (GHCR)
+
+You can also pull the pre-built image directly:
+
+```powershell
+docker pull ghcr.io/theworstever1992/kitty-collab-board:main
+```
+
+
 ## Commands (via `meow.py`)
 
 
