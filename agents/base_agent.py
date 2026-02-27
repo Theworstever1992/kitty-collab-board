@@ -9,8 +9,10 @@ import time
 import datetime
 from pathlib import Path
 
-BOARD_DIR = Path(__file__).parent.parent / "board"
-LOG_DIR = Path(__file__).parent.parent / "logs"
+BOARD_DIR = Path(
+    os.environ.get("CLOWDER_BOARD_DIR", Path(__file__).parent.parent / "board")
+)
+LOG_DIR = Path(os.environ.get("CLOWDER_LOG_DIR", Path(__file__).parent.parent / "logs"))
 
 
 class BaseAgent:

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  claude:
+    build: .
+    container_name: clowder-claude
+    command: python agents/claude_agent.py
+    env_file: .env
+    environment:
+      - CLOWDER_BOARD_DIR=/app/board
+      - CLOWDER_LOG_DIR=/app/logs
+    volumes:
+      - ./board:/app/board
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  qwen:
+    build: .
+    container_name: clowder-qwen
+    command: python agents/qwen_agent.py
+    env_file: .env
+    environment:
+      - CLOWDER_BOARD_DIR=/app/board
+      - CLOWDER_LOG_DIR=/app/logs
+    volumes:
+      - ./board:/app/board
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+# Volumes are mapped to local directories for persistence and host-side monitoring

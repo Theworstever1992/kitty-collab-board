@@ -2,7 +2,7 @@
 
 A multi-agent AI collaboration system. Multiple AI agents (Claude, Qwen, etc.) run in parallel, share a task board, and collaborate to complete work assigned by the human operator.
 
-## Quick Start
+## Quick Start (Local)
 
 ```powershell
 # 1. Clone / navigate to project
@@ -24,7 +24,22 @@ powershell -ExecutionPolicy Bypass -File windows\spawn_agents.ps1
 python mission_control.py
 ```
 
+## Running with Docker (Recommended)
+
+If you have Docker Desktop installed, you can launch the agents in isolated containers:
+
+```powershell
+# 1. Start agents
+docker-compose up -d
+
+# 2. Monitor locally
+python mission_control.py
+```
+
+The Docker setup automatically mounts your local `board/` and `logs/` folders, so you can still use the local `mission_control.py` and see the logs on your host machine.
+
 ## Commands (via `meow.py`)
+
 
 | Command | Description |
 |---------|-------------|
