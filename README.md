@@ -5,8 +5,9 @@ A multi-agent AI collaboration system. Multiple AI agents (Claude, Qwen, etc.) r
 ## Quick Start (Local)
 
 ```powershell
-# 1. Clone / navigate to project
-cd D:\kitty-collab-board
+# 1. Clone the repository from GitHub
+git clone https://github.com/Theworstever1992/kitty-collab-board.git
+cd kitty-collab-board
 
 # 2. Install dependencies
 pip install -r requirements.txt
