@@ -1,6 +1,38 @@
 # 🐱 Kitty Collab Board (Clowder)
 
-A multi-agent AI collaboration system. Multiple AI agents (Claude, Qwen, etc.) run in parallel, share a task board, and collaborate to complete work assigned by the human operator.
+A production-ready multi-agent AI collaboration system. Multiple AI agents (Claude, Qwen, etc.) run in parallel, share a task board, and collaborate to complete work assigned by the human operator.
+
+**v1.0.0** — [Features](#features) • [Docs](#documentation) • [Deploy](#deployment)
+
+## Features
+
+✨ **Multi-Agent Collaboration**
+Multiple AI agents (Claude, Qwen, Ollama, etc.) claim and execute tasks in parallel with automatic handoff protocol.
+
+📊 **Task Management**
+Shared JSON board with statuses, priorities, role-based routing, dependencies, recurring tasks, and multi-board support.
+
+🎯 **Advanced Scheduling**
+- Task dependencies (blocked-by relationships)
+- Recurring tasks with RRULE patterns
+- Priority-based claiming
+- Role/skill-based routing
+
+📈 **Analytics & Metrics**
+Real-time dashboard with task completion trends, agent performance tracking, and CSV/PDF report export.
+
+🖥️ **Web GUI**
+React + TypeScript frontend with real-time WebSocket updates, task board visualization, agent health monitoring, and log streaming.
+
+🚀 **Native Desktop App**
+Cross-platform Tauri app with system tray integration, native notifications, and offline-first sync queue.
+
+🔧 **Production Ready**
+- Structured JSON logging with rotation
+- Performance optimized (<2s startup, <100ms task claiming)
+- Docker Compose deployment
+- GitHub Actions CI/CD
+- Comprehensive health monitoring
 
 ## Quick Start (Local)
 

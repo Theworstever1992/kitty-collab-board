@@ -6,6 +6,8 @@ Includes handoff protocol implementation (TASK 4022-4023).
 Updated with structured logging (TASK 6002).
 """
 
+__version__ = "1.0.0"
+
 import json
 import os
 import time

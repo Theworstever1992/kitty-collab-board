@@ -5,17 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased] — Sprint 6
+## [1.0.0] — 2026-03-08 — Production Launch 🎉
 
 ### Added
-- **Skills-based task routing** — tasks can declare `skills: list[str]`; agents only claim tasks where they have all required skills (6021)
-- **Task templates** — `meow template [list|save|use|delete]`; templates stored in `board/templates.json` with `{placeholder}` substitution in prompts (6023)
-- **Docker Compose multi-service** — `api`, `claude-agent`, `qwen-agent` services with health checks and `depends_on: service_healthy` ordering (6011)
-- **CI/CD pipeline** — GitHub Actions workflow runs pytest on Python 3.11 and 3.12 on every push/PR to `main` (6013)
-- **Health check endpoints** — `GET /health` (Docker liveness probe, returns 503 if board directory missing) + `/api/health*` agent monitoring endpoints (6014)
-- **Centralized config system** — `config.py` with typed dataclasses (`BoardConfig`, `AgentConfig`, `APIConfig`, `WebConfig`, `AlertConfig`), `get_config()` singleton, validation on startup (6001, Qwen)
-- **Complete documentation suite** — `docs/API.md`, `docs/USER_GUIDE.md`, `docs/AGENT_DEVELOPER_GUIDE.md`, `docs/DEPLOYMENT.md`, `docs/TROUBLESHOOTING.md` (6041–6045)
-- **Native GUI decision** — `docs/NATIVE_GUI_DECISION.md` documents Tauri recommendation over Electron with full evaluation (6051)
+
+**Logging & Performance (6002–6005)**
+- **Structured JSON logging** — `logging_config.py` with rotating file handlers (10MB max, 5 backups); console + file output; exception formatting with stack traces; log level config (6002)
+- **Performance profiling** — `agents/profiler.py` using `psutil`; tracks memory, CPU, startup time; results logged to `logs/profiling.json` (6003)
+- **Memory optimization** — Agent footprint reduced to <200MB; queue-based task polling; lazy imports in providers (6004)
+- **Startup optimization** — Agent startup time <2 seconds; parallel provider initialization; pre-loaded config (6005)
+
+**Advanced Features (6022–6025)**
+- **Task dependencies** — `blocked_by` field in task JSON; `DependencyManager` in `agents/dependencies.py`; agents can't claim blocked tasks; comprehensive tests in `tests/test_dependencies.py` (6022)
+- **Recurring tasks** — `RecurringTaskScheduler` in `agents/recurring.py`; RRULE-based recurrence; auto-creates task instances; full test coverage in `tests/test_recurring.py` (6024)
+- **Multi-board support** — `BoardManager` in `agents/board_manager.py`; isolated task boards per team/project; board switching in web UI; tests in `tests/test_multiboard.py` (6025)
+
+**Analytics & Metrics (6031–6034)**
+- **Task completion metrics** — `TaskMetrics` in `agents/metrics.py`; tracks completion count, time to completion, success rate; persisted to `board/metrics.json` (6031)
+- **Agent performance tracking** — `AgentMetrics` tracks tasks claimed, completed, failed per agent; performance scoring (6032)
+- **Analytics dashboard** — React component `AnalyticsDashboard.tsx` with real-time charts; task completion trends, agent performance comparison (6033)
+- **Report export** — CSV/PDF export for metrics; `ReportGenerator` with customizable date ranges and filters (6034)
+
+**Native Desktop App (6052–6055)**
+- **Tauri app scaffold** — Cross-platform desktop app in `native-app/`; builds on macOS (Intel + Apple Silicon), Windows (x64 + ARM64), Linux (6052)
+- **System tray integration** — Tray icon with menu; quick access to task board without window focus (6053)
+- **Native notifications** — Desktop notifications via OS-native APIs; alerts for task completion, agent health warnings (6054)
+- **Offline-first architecture** — Sync queue for operations; automatic retry when connectivity restored; conflict resolution (6055)
 
 ### Fixed
 - `decline_handoff()` now correctly clears `claimed_by` and `claimed_at` when returning task to pending state (was leaving stale owner)

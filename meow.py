@@ -11,6 +11,8 @@ Usage:
   python meow.py task <text>  # quick-add a task from the command line
 """
 
+__version__ = "1.0.0"
+
 import sys
 import os
 import subprocess
