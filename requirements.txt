@@ -34,3 +34,6 @@ pydantic>=2.0.0
 
 # Phase 8: Health monitoring + webhook alerts (optional)
 requests>=2.31.0
+
+# Performance profiling (Sprint 6)
+psutil>=5.9.0

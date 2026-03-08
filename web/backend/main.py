@@ -461,5 +461,293 @@ def get_agent_health(agent_name: str):
 
 
 # ------------------------------------------------------------------
+# Analytics Endpoints - TASK 6031, 6032, 6033, 6034
+# ------------------------------------------------------------------
+
+from agents.metrics import get_metrics_collector, MetricsCollector
+
+
+@app.get("/api/analytics/summary")
+def get_analytics_summary():
+    """Get system-wide analytics summary."""
+    collector = get_metrics_collector()
+    summary = collector.get_system_summary()
+    return {
+        "timestamp": summary.timestamp,
+        "total_tasks": summary.total_tasks,
+        "pending_tasks": summary.pending_tasks,
+        "in_progress_tasks": summary.in_progress_tasks,
+        "done_tasks": summary.done_tasks,
+        "blocked_tasks": summary.blocked_tasks,
+        "total_agents": summary.total_agents,
+        "online_agents": summary.online_agents,
+        "avg_completion_time_seconds": summary.avg_task_completion_time_seconds,
+        "tasks_completed_today": summary.tasks_completed_today,
+        "tasks_completed_this_week": summary.tasks_completed_this_week,
+        "tasks_completed_this_month": summary.tasks_completed_this_month,
+    }
+
+
+@app.get("/api/analytics/completion-trend")
+def get_completion_trend(days: int = 7):
+    """Get task completion trend over specified days."""
+    collector = get_metrics_collector()
+    trend = collector.get_completion_trend(days)
+    return {"days": days, "trend": trend}
+
+
+@app.get("/api/analytics/agent-leaderboard")
+def get_agent_leaderboard(metric: str = "tasks_completed"):
+    """Get agent ranking by specified metric."""
+    collector = get_metrics_collector()
+    valid_metrics = ["tasks_completed", "tasks_claimed", "success_rate", "total_result_chars"]
+    if metric not in valid_metrics:
+        raise HTTPException(status_code=422, detail=f"Invalid metric. Must be one of: {valid_metrics}")
+    leaderboard = collector.get_agent_leaderboard(metric)
+    return {"metric": metric, "leaderboard": leaderboard}
+
+
+@app.get("/api/analytics/agents")
+def get_all_agent_metrics():
+    """Get metrics for all agents."""
+    collector = get_metrics_collector()
+    agents = collector.get_all_agent_metrics()
+    from dataclasses import asdict
+    return {"agents": [asdict(a) for a in agents]}
+
+
+@app.get("/api/analytics/tasks/{task_id}")
+def get_task_metrics(task_id: str):
+    """Get metrics for a specific task."""
+    collector = get_metrics_collector()
+    metrics = collector.get_task_metrics(task_id)
+    if not metrics:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found in metrics")
+    from dataclasses import asdict
+    return asdict(metrics)
+
+
+@app.get("/api/analytics/export/csv")
+def export_metrics_csv():
+    """Export task metrics to CSV format."""
+    import tempfile
+    from fastapi.responses import FileResponse
+
+    collector = get_metrics_collector()
+    
+    # Create temp file
+    fd, path = tempfile.mkstemp(suffix=".csv", prefix="clowder_metrics_")
+    output_path = Path(path)
+    
+    collector.export_csv(output_path)
+    
+    return FileResponse(
+        path=output_path,
+        media_type="text/csv",
+        filename="clowder_metrics.csv",
+    )
+
+
+@app.get("/api/analytics/export/json")
+def export_metrics_json():
+    """Export all metrics to JSON format."""
+    from agents.metrics import MetricsCollector
+    collector = get_metrics_collector()
+    data = collector._load_metrics()
+    return data
+
+
+# ------------------------------------------------------------------
+# Recurring Tasks Endpoints - TASK 6024
+# ------------------------------------------------------------------
+
+from agents.recurring import get_recurring_manager, RecurrenceType
+
+
+class RecurringTaskCreate(BaseModel):
+    title: str
+    description: str
+    prompt: str
+    recurrence_type: str  # daily, weekly, monthly, custom
+    interval: int = 1
+    hour: int = 9
+    day_of_week: int = 0
+    day_of_month: int = 1
+    role: Optional[str] = None
+    priority: str = "normal"
+    skills: list[str] = []
+
+
+@app.get("/api/recurring")
+def get_recurring_tasks():
+    """Get all recurring tasks."""
+    manager = get_recurring_manager()
+    tasks = manager.list_recurring_tasks(enabled_only=False)
+    from dataclasses import asdict
+    return {"tasks": [asdict(t) for t in tasks]}
+
+
+@app.post("/api/recurring", status_code=201)
+def create_recurring_task(task: RecurringTaskCreate):
+    """Create a new recurring task."""
+    manager = get_recurring_manager()
+    task_id = manager.add_recurring_task(
+        title=task.title,
+        description=task.description,
+        prompt=task.prompt,
+        recurrence_type=task.recurrence_type,
+        interval=task.interval,
+        hour=task.hour,
+        day_of_week=task.day_of_week,
+        day_of_month=task.day_of_month,
+        role=task.role,
+        priority=task.priority,
+        skills=task.skills,
+    )
+    return {"id": task_id, "status": "created"}
+
+
+@app.delete("/api/recurring/{task_id}")
+def delete_recurring_task(task_id: str):
+    """Delete a recurring task."""
+    manager = get_recurring_manager()
+    manager.delete_recurring_task(task_id)
+    return {"deleted": task_id}
+
+
+@app.post("/api/recurring/{task_id}/enable")
+def enable_recurring_task(task_id: str):
+    """Enable a recurring task."""
+    manager = get_recurring_manager()
+    manager.enable_recurring_task(task_id)
+    return {"status": "enabled"}
+
+
+@app.post("/api/recurring/{task_id}/disable")
+def disable_recurring_task(task_id: str):
+    """Disable a recurring task."""
+    manager = get_recurring_manager()
+    manager.disable_recurring_task(task_id)
+    return {"status": "disabled"}
+
+
+# ------------------------------------------------------------------
+# Multi-Board Endpoints - TASK 6025
+# ------------------------------------------------------------------
+
+from agents.multiboard import get_multiboard_manager
+
+
+@app.get("/api/boards")
+def get_boards():
+    """Get list of all boards."""
+    manager = get_multiboard_manager()
+    boards = manager.list_boards()
+    from dataclasses import asdict
+    return {"boards": [asdict(b) for b in boards]}
+
+
+@app.post("/api/boards", status_code=201)
+def create_board(name: str, description: str = ""):
+    """Create a new board."""
+    manager = get_multiboard_manager()
+    try:
+        board_name = manager.create_board(name, description)
+        return {"name": board_name, "status": "created"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/boards/{board_name}/switch")
+def switch_to_board(board_name: str):
+    """Switch the active board."""
+    manager = get_multiboard_manager()
+    try:
+        manager.switch_board(board_name)
+        return {"status": "switched", "board": board_name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/boards/{board_name}")
+def delete_board(board_name: str):
+    """Delete a board."""
+    manager = get_multiboard_manager()
+    try:
+        if manager.delete_board(board_name):
+            return {"deleted": board_name}
+        raise HTTPException(status_code=404, detail=f"Board {board_name} not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/boards/active")
+def get_active_board():
+    """Get the currently active board."""
+    manager = get_multiboard_manager()
+    board = manager.get_active_board()
+    if board:
+        from dataclasses import asdict
+        return asdict(board)
+    return {"message": "No active board"}
+
+
+# ------------------------------------------------------------------
+# Task Dependencies Endpoints - TASK 6022
+# ------------------------------------------------------------------
+
+from agents.dependencies import get_dependency_manager
+
+
+class DependencyCreate(BaseModel):
+    task_id: str
+    blocked_by: str
+
+
+@app.get("/api/tasks/{task_id}/dependencies")
+def get_task_dependencies(task_id: str):
+    """Get dependencies for a task."""
+    manager = get_dependency_manager()
+    deps = manager.get_dependencies(task_id)
+    return {"task_id": task_id, "blocked_by": deps}
+
+
+@app.post("/api/tasks/{task_id}/dependencies")
+def add_task_dependency(task_id: str, dep: DependencyCreate):
+    """Add a dependency: task_id is blocked by blocked_by."""
+    manager = get_dependency_manager()
+    if dep.task_id != task_id:
+        raise HTTPException(status_code=400, detail="task_id in URL must match body")
+    manager.add_dependency(task_id, dep.blocked_by)
+    return {"status": "added", "task_id": task_id, "blocked_by": dep.blocked_by}
+
+
+@app.delete("/api/tasks/{task_id}/dependencies/{blocked_by}")
+def remove_task_dependency(task_id: str, blocked_by: str):
+    """Remove a dependency."""
+    manager = get_dependency_manager()
+    manager.remove_dependency(task_id, blocked_by)
+    return {"status": "removed", "task_id": task_id, "blocked_by": blocked_by}
+
+
+@app.get("/api/tasks/{task_id}/blocking")
+def get_blocking_tasks(task_id: str):
+    """Get tasks that are blocking this task."""
+    manager = get_dependency_manager()
+    board = load_board()
+    blocking = manager.get_blocking_tasks(task_id, board.get("tasks", []))
+    return {"task_id": task_id, "blocking": blocking}
+
+
+@app.get("/api/tasks/ready")
+def get_ready_tasks():
+    """Get tasks that are ready to be claimed (not blocked)."""
+    manager = get_dependency_manager()
+    board = load_board()
+    ready = manager.get_ready_tasks(board.get("tasks", []))
+    return {"ready_tasks": ready}
+
+
+# ------------------------------------------------------------------
 # Run with: uvicorn web.backend.main:app --reload
 # ------------------------------------------------------------------

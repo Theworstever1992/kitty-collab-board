@@ -53,6 +53,13 @@ try:
 except ImportError:
     _audit_available = False
 
+# Import recurring task support (TASK 6024)
+try:
+    from agents.recurring import create_recurring_task, should_create_next_instance
+    _recurring_available = True
+except ImportError:
+    _recurring_available = False
+
 
 class _NoOpLock:
     """Fallback context manager when filelock is not installed."""
@@ -191,24 +198,48 @@ class BaseAgent:
             return []
 
     def claim_task(self, task_id: str) -> bool:
-        """Claim a task by ID. Returns True if successfully claimed."""
+        """Claim a task by ID. Returns True if successfully claimed.
+
+        TASK 6022: Checks blocked_by dependencies before claiming.
+        """
         board_file = BOARD_DIR / "board.json"
         if not board_file.exists():
             return False
         try:
             with self._lock(board_file):
                 board = json.loads(board_file.read_text(encoding="utf-8"))
+                target_task = None
+
+                # Find the task
                 for task in board.get("tasks", []):
-                    if task["id"] == task_id and task["status"] == "pending":
-                        task["status"] = "in_progress"
-                        task["claimed_by"] = self.name
-                        task["claimed_at"] = datetime.datetime.now().isoformat()
-                        board_file.write_text(json.dumps(board, indent=2), encoding="utf-8")
-                        self.log(f"Claimed task: {task_id}")
-                        # TASK 802: Log audit event
-                        if _audit_available:
-                            audit_task_claimed(task, self.name)
-                        return True
+                    if task["id"] == task_id:
+                        target_task = task
+                        break
+
+                if not target_task or target_task["status"] != "pending":
+                    return False
+
+                # TASK 6022: Check if dependencies are met
+                blocked_by = target_task.get("blocked_by", [])
+                if blocked_by:
+                    blocker_ids = blocked_by if isinstance(blocked_by, list) else [blocked_by]
+                    for blocker_id in blocker_ids:
+                        # Find blocker task
+                        blocker = next((t for t in board.get("tasks", []) if t["id"] == blocker_id), None)
+                        if not blocker or blocker.get("status") != "done":
+                            self.log(f"Cannot claim {task_id}: blocked by {blocker_id}")
+                            return False
+
+                # All dependencies met, claim the task
+                target_task["status"] = "in_progress"
+                target_task["claimed_by"] = self.name
+                target_task["claimed_at"] = datetime.datetime.now().isoformat()
+                board_file.write_text(json.dumps(board, indent=2), encoding="utf-8")
+                self.log(f"Claimed task: {task_id}")
+                # TASK 802: Log audit event
+                if _audit_available:
+                    audit_task_claimed(target_task, self.name)
+                return True
         except Exception:
             pass
         return False
