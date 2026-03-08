@@ -1,282 +1,274 @@
-# Kitty Collab Board — User Guide
+# User Guide — Kitty Collab Board
 
-Kitty Collab Board (codename **Clowder**) is a multi-agent AI collaboration system. Multiple AI agents run as independent processes, poll a shared task board, claim and complete tasks, and report results. You manage everything through `meow.py`.
+**Version:** 1.0.0
 
 ---
 
 ## Quick Start
 
+### 1. Install Dependencies
+
 ```bash
-# 1. Install dependencies
 pip install -r requirements.txt
+```
 
-# 2. Copy and fill in your API keys
+### 2. Configure API Keys
+
+```bash
 cp .env.example .env
-# Edit .env: set ANTHROPIC_API_KEY and DASHSCOPE_API_KEY
+# Edit .env with your API keys
+```
 
-# 3. Initialize the board
+### 3. Initialize Board
+
+```bash
 python wake_up.py
-
-# 4. Add your first task
-python meow.py task "Summarize the README file"
-
-# 5. Start an agent
-python agents/claude_agent.py
 ```
 
-The agent will pick up the task, run it, and write the result back to the board.
-
----
-
-## The `meow` Command
-
-All operator actions go through `meow.py`:
+### 4. Add Tasks
 
 ```bash
-python meow.py                       # show board status
-python meow.py mc                    # open Mission Control (TUI)
-python meow.py wake                  # re-initialize board
-python meow.py add                   # add task interactively
-python meow.py task "do something"   # quick-add a task
-python meow.py spawn                 # spawn all agents (Linux/Mac)
-python meow.py help                  # show all commands
+python meow.py task "Refactor auth module" --role code --priority high
 ```
 
-### Quick-Add a Task
+### 5. Spawn Agents
 
 ```bash
-# Basic
-python meow.py task "Write unit tests for board.py"
-
-# With role filter (only agents with this role will claim it)
-python meow.py task "Fix SQL injection" --role code
-
-# With priority
-python meow.py task "Deploy hotfix" --priority critical
-
-# With required skills
-python meow.py task "Build React component" --role code --skills python,react
+python meow.py spawn
 ```
 
-### Interactive Add
-
-`python meow.py add` prompts you for all task fields (title, description, prompt, role, priority, skills).
-
----
-
-## Mission Control (TUI)
-
-`python meow.py mc` opens Mission Control — a terminal dashboard showing tasks and agents.
-
-### Navigation
-
-| Key | Action |
-|-----|--------|
-| `↑` / `↓` | Navigate task list |
-| `Enter` | View full task result |
-| `r` | Refresh |
-| `a` | Add a new task |
-| `h` | Initiate a handoff |
-| `A` | Archive done tasks |
-| `q` | Quit |
-
-### Status View
-
-`python meow.py` (no arguments) prints a quick status summary: task counts by status and agent heartbeat times.
-
----
-
-## Task Lifecycle
-
-```
-pending → in_progress → done
-                     ↘ blocked
-```
-
-- **pending** — task is on the board, waiting to be claimed
-- **in_progress** — an agent has claimed it and is working
-- **done** — agent completed it; `result` field contains the output
-- **blocked** — agent hit an error; `block_reason` explains why
-
----
-
-## Task Priorities
-
-Tasks are sorted by priority before agents claim them:
-
-| Priority | Typical use |
-|----------|-------------|
-| `critical` | Production incidents, urgent fixes |
-| `high` | Important features, blocking bugs |
-| `normal` | Standard work (default) |
-| `low` | Nice-to-have, background work |
+### 6. Monitor Progress
 
 ```bash
-python meow.py task "Fix login crash" --priority critical
+python meow.py mc
+# Or open web dashboard at http://localhost:3000
 ```
 
 ---
 
-## Role-Based Routing
+## CLI Commands
 
-Agents have roles and only claim tasks matching their role. Tasks without a role can be claimed by any agent.
+### `meow` — Main CLI
 
-Available roles:
-- `reasoning` — analysis, planning, decision-making
-- `code` — writing and reviewing code
-- `research` — web research, information gathering
-- `summarization` — condensing documents or results
-- `general` — catch-all (unclaimed tasks default here)
+| Command | Description |
+|---------|-------------|
+| `meow` | Show board status |
+| `meow mc` | Open Mission Control TUI |
+| `meow wake` | Initialize board + print aliases |
+| `meow add` | Add a task interactively |
+| `meow task "text"` | Quick-add a task |
+| `meow task "text" --role code` | Add task with role |
+| `meow task "text" --priority high` | Add task with priority |
+| `meow task "text" --skills python,react` | Add with required skills |
+| `meow spawn` | Spawn all agents |
+| `meow spawn --agent qwen` | Spawn specific agent |
+| `meow spawn --list` | List configured agents |
+| `meow template list` | List task templates |
+| `meow template save <name>` | Save a template |
+| `meow template use <name>` | Create task from template |
+| `meow help` | Show help |
 
-```bash
-# Only the 'code' role agent will pick this up
-python meow.py task "Implement OAuth flow" --role code
-```
+### Task Templates
 
----
-
-## Skills-Based Routing
-
-For finer-grained routing, tasks can declare required skills. An agent must have **all** listed skills to claim a task.
-
-```bash
-# Only an agent with both 'python' and 'react' skills can claim this
-python meow.py task "Build dashboard widget" --skills python,react
-```
-
-Skills are lowercase strings — whatever you and your agents agree on.
-
----
-
-## Task Templates
-
-Save common task patterns as templates to reuse them quickly.
+Save frequently-used task specifications:
 
 ```bash
 # Save a template
-python meow.py template save bug-fix
-#   Description: Fix a bug in the codebase
-#   Role: code
-#   Priority: high
-#   Skills: python
-#   Prompt template: Fix the bug in {file}: {description}
+meow template save code_review
+  Description: Code review for PR
+  Role: code
+  Priority: normal
+  Skills: python,security
+  Prompt template: Review this code for {concerns}: {code}
 
-# List templates
-python meow.py template list
-
-# Create a task from a template (will prompt for placeholders)
-python meow.py template use bug-fix
-#   file: auth.py
-#   description: null pointer when user has no email
-#   Task title: Fix null email bug
-
-# Delete a template
-python meow.py template delete bug-fix
+# Use a template
+meow template use code_review
+  concerns: security vulnerabilities
+  code: [paste code]
 ```
 
-Templates are stored in `board/templates.json`.
-
 ---
 
-## Handoff Protocol
+## Task Management
 
-An agent can hand off a task to another agent when it's stuck or the other agent is better suited.
+### Task Fields
 
-From Mission Control (`meow mc`), press `h` to initiate a handoff. You specify:
-- Target agent name
-- Notes for the receiving agent
+| Field | Description | Values |
+|-------|-------------|--------|
+| `title` | Task title | Any text |
+| `description` | Detailed description | Any text |
+| `prompt` | Prompt sent to agent | Any text |
+| `status` | Current status | `pending`, `in_progress`, `done`, `blocked` |
+| `role` | Assigned role | `code`, `reasoning`, `research`, `summarization`, `general` |
+| `priority` | Priority level | `critical`, `high`, `normal`, `low` |
+| `skills` | Required skills | List like `["python", "react"]` |
 
-The target agent will see a pending handoff on its next poll and can accept or decline. Handoffs expire after 10 minutes if not responded to.
+### Task Dependencies
 
----
-
-## Archiving Done Tasks
-
-Done tasks accumulate over time. Archive them to keep the board clean:
+Tasks can depend on other tasks:
 
 ```bash
-# Archive all done tasks (from CLI)
-python mission_control.py archive
-
-# Or press 'A' in Mission Control TUI
+# In Mission Control or Web UI
+# Task B blocked-by Task A
+# Task B won't be claimable until Task A is done
 ```
 
-Archived tasks move to `board/archive.json` with an `archived_at` timestamp.
+### Recurring Tasks
+
+Create tasks that auto-generate:
+
+```python
+from agents.recurring import add_recurring_task
+
+add_recurring_task(
+    title="Daily standup summary",
+    description="Generate standup summary",
+    prompt="Summarize yesterday's tasks...",
+    recurrence_type="daily",  # or weekly, monthly
+    hour=9,  # Run at 9 AM
+    role="summarization"
+)
+```
 
 ---
 
-## Web UI
+## Agent Management
 
-Start the API and frontend for a browser-based view:
+### Agent Roles
+
+| Role | Description | Best For |
+|------|-------------|----------|
+| `reasoning` | Complex reasoning, planning | Architecture decisions, problem-solving |
+| `code` | Code generation, analysis | Writing code, refactoring, debugging |
+| `research` | Information gathering | Web research, fact-checking |
+| `summarization` | Summarizing content | Meeting notes, document summaries |
+| `general` | General tasks | Any task without specific requirements |
+
+### Agent Configuration
+
+Edit `agents.yaml` to configure agents:
+
+```yaml
+agents:
+  - name: claude
+    model: claude-sonnet-4-20250514
+    provider: anthropic
+    role: reasoning
+    max_tokens: 4096
+
+  - name: qwen
+    model: qwen-plus
+    provider: openai_compat
+    role: code
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+### Health Monitoring
+
+Agents are monitored for health:
+
+| Status | Meaning |
+|--------|---------|
+| 🟢 Online | Heartbeat within 60 seconds |
+| 🟡 Warning | No heartbeat for 60-300 seconds |
+| 🔴 Offline | No heartbeat for 300+ seconds |
+
+---
+
+## Multi-Board Support
+
+Run multiple independent task boards:
 
 ```bash
-# Start API
-uvicorn web.backend.main:app --reload
+# Create a new board
+python -c "from agents.multiboard import create_board; create_board('project_x', 'Project X tasks')"
 
-# Start frontend (in a separate terminal)
-cd web/frontend && npm run dev
+# Switch to a board
+python -c "from agents.multiboard import switch_board; switch_board('project_x')"
+
+# List boards
+python -c "from agents.multiboard import list_boards; print(list_boards())"
 ```
-
-Open `http://localhost:3000` to see the board, agent health, and live logs.
 
 ---
 
-## Viewing Agent Logs
+## Web Dashboard
 
-Logs are written to `logs/<agent_name>.log`. View them directly:
+### Access
 
-```bash
-tail -f logs/claude.log
-tail -f logs/qwen.log
-```
+- **Frontend:** http://localhost:3000
+- **API:** http://localhost:8000
 
-Or use the web UI's log streaming panel (connects via WebSocket).
+### Features
 
----
+- **Task Board** — View and manage tasks
+- **Agent Status** — See agent health
+- **Analytics** — View completion metrics
+- **Log Viewer** — Real-time log streaming
 
-## Environment Variables
+### Analytics Dashboard
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | required | Anthropic API key for Claude agents |
-| `DASHSCOPE_API_KEY` | required | DashScope key for Qwen agents |
-| `CLOWDER_BOARD_DIR` | `./board` | Path to board directory |
-| `CLOWDER_LOG_DIR` | `./logs` | Path to log directory |
-| `CLOWDER_AGENT_WARNING_SECONDS` | `60` | Seconds before agent is marked "warning" |
-
----
-
-## Docker
-
-Run everything in containers:
-
-```bash
-docker-compose up -d          # start API + all agents
-docker-compose logs -f        # stream all logs
-docker-compose down           # stop everything
-```
-
-The `board/` and `logs/` directories are mounted from your host, so you can still run `meow.py` locally while agents run in containers.
+View:
+- Task completion trends
+- Agent performance leaderboard
+- Average completion times
+- Export metrics (CSV/JSON)
 
 ---
 
 ## Troubleshooting
 
-**Agent not picking up tasks**
-- Check that the agent is running: `python meow.py` shows last-seen times
-- Check that the task's role matches the agent's role
-- Check that the agent has the required skills
+### Agents Not Starting
 
-**Board file corrupted**
+1. Check API keys in `.env`
+2. Verify network connectivity
+3. Check logs: `logs/<agent_name>.log`
+
+### Tasks Not Being Claimed
+
+1. Check task role matches agent role
+2. Verify task isn't blocked by dependencies
+3. Check agent health in dashboard
+
+### Board File Corrupted
+
 ```bash
-python -c "import json; json.load(open('board/board.json'))"
+# Reset board (WARNING: deletes all tasks)
+rm board/board.json
+python wake_up.py
 ```
-If this fails, restore from `board/archive.json` or re-initialize with `python wake_up.py`.
 
-**API won't start**
-- Check port 8000 is free: `lsof -i :8000`
-- Check `board/` exists: `python wake_up.py`
+### Logs Not Appearing
 
-**Handoff not working**
-- Target agent must be online (last_seen < 5 minutes)
-- Handoffs expire after 10 minutes if not accepted
+1. Check log directory exists: `ls -la logs/`
+2. Verify permissions
+3. Check log level: `echo $CLOWDER_LOG_LEVEL`
+
+---
+
+## Best Practices
+
+### Task Creation
+
+- ✅ Write clear, specific titles
+- ✅ Include detailed prompts
+- ✅ Set appropriate roles
+- ✅ Use priorities for important tasks
+- ✅ Add skill requirements when needed
+
+### Agent Management
+
+- ✅ Run agents in Docker for isolation
+- ✅ Monitor agent health regularly
+- ✅ Check logs for errors
+- ✅ Restart agents after API rate limits
+
+### Performance
+
+- ✅ Archive old tasks periodically
+- ✅ Use role filtering for large task lists
+- ✅ Run agents on separate machines for heavy workloads
+
+---
+
+*For developer documentation, see `DEVELOPER_GUIDE.md`*

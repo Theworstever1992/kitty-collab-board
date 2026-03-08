@@ -1,200 +1,370 @@
-# Kitty Collab Board — Deployment Guide
+# Deployment Guide — Kitty Collab Board
+
+**Version:** 1.0.0
 
 ---
 
-## Prerequisites
+## Deployment Options
 
-- Python 3.11 or 3.12
-- `pip install -r requirements.txt`
-- API keys: `ANTHROPIC_API_KEY`, `DASHSCOPE_API_KEY`
+1. **Docker Compose** (Recommended)
+2. **Native Python** (Linux/macOS/Windows)
+3. **Kubernetes** (Advanced)
 
 ---
 
-## Local (Single Machine)
+## Docker Compose Deployment
 
-### Setup
+### Prerequisites
+
+- Docker Desktop or Docker Engine
+- Docker Compose v2+
+
+### Quick Start
 
 ```bash
-git clone <repo>
+# Clone repository
+git clone https://github.com/theworstever1992/kitty-collab-board.git
 cd kitty-collab-board
-pip install -r requirements.txt
+
+# Copy environment file
 cp .env.example .env
-# Edit .env and fill in API keys
-python wake_up.py
-```
+# Edit .env with API keys
 
-`wake_up.py` creates `board/` and `logs/` directories. It only needs to run once.
-
-### Running Agents
-
-Start each agent in a separate terminal:
-
-```bash
-python agents/claude_agent.py
-python agents/qwen_agent.py
-```
-
-Or use the spawn script (Linux/Mac):
-
-```bash
-python meow.py spawn            # all agents
-python meow.py spawn --agent claude   # single agent
-```
-
-### Running the Web UI
-
-```bash
-# Terminal 1: API
-uvicorn web.backend.main:app --reload --port 8000
-
-# Terminal 2: Frontend
-cd web/frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
----
-
-## Docker
-
-### Build and Start
-
-```bash
+# Start all services
 docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
 ```
 
-This starts:
-- `api` — FastAPI backend on port 8000
-- `claude-agent` — Anthropic agent (waits for API to be healthy)
-- `qwen-agent` — Qwen agent (waits for API to be healthy)
+### Services
 
-### Environment
+| Service | Port | Description |
+|---------|------|-------------|
+| `api` | 8000 | FastAPI backend |
+| `claude` | - | Claude agent |
+| `qwen` | - | Qwen agent |
 
-Create `.env` at project root:
+### Configuration
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-DASHSCOPE_API_KEY=sk-...
-```
-
-Docker Compose reads this automatically. All containers share these keys.
-
-### Volumes
+Edit `docker-compose.yml`:
 
 ```yaml
-volumes:
-  - ./board:/app/board    # shared task board
-  - ./logs:/app/logs      # shared agent logs
+services:
+  api:
+    environment:
+      - CLOWDER_WEB_HOST=0.0.0.0
+      - CLOWDER_WEB_PORT=8000
+      - CLOWDER_CORS_ORIGINS=http://localhost:3000
+  
+  claude:
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 ```
 
-Board and logs are on the host — you can run `python meow.py` locally while agents run in containers.
+### Updating
 
-### Health Checks
-
-The API container runs a health check every 30 seconds:
 ```bash
-python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+# Pull latest images
+docker-compose pull
+
+# Restart services
+docker-compose up -d
+
+# Clean up old images
+docker image prune -f
 ```
 
-Agent containers wait for `service_healthy` before starting. If the board directory is missing, the API reports unhealthy and agents won't start.
-
-### Useful Commands
+### Backup
 
 ```bash
-docker-compose up -d              # start all services
-docker-compose logs -f            # stream all logs
-docker-compose logs -f api        # stream API logs only
-docker-compose ps                 # service status
-docker-compose restart claude-agent  # restart single service
-docker-compose down               # stop all services
-docker-compose down -v            # stop + remove volumes (clears board!)
+# Backup board data
+docker-compose run --rm api tar czf - /app/board > board-backup-$(date +%Y%m%d).tar.gz
 ```
 
-### Rebuilding After Code Changes
+---
+
+## Native Python Deployment
+
+### Linux/macOS
 
 ```bash
-docker-compose build
+# Install Python 3.10+
+python3 --version
+
+# Install dependencies
+pip3 install -r requirements.txt
+
+# Set up environment
+export ANTHROPIC_API_KEY=your-key
+export DASHSCOPE_API_KEY=your-key
+export CLOWDER_ENV=prod
+
+# Create systemd service (optional)
+sudo tee /etc/systemd/system/clowder-api.service > /dev/null <<EOF
+[Unit]
+Description=Clowder API
+After=network.target
+
+[Service]
+Type=simple
+User=clowder
+WorkingDirectory=/opt/clowder
+Environment=PATH=/opt/clowder/venv/bin
+ExecStart=/opt/clowder/venv/bin/uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable clowder-api
+sudo systemctl start clowder-api
+```
+
+### Windows
+
+```powershell
+# Install Python 3.10+ from python.org
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables (PowerShell)
+$env:ANTHROPIC_API_KEY="your-key"
+$env:DASHSCOPE_API_KEY="your-key"
+
+# Start API
+uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
+
+# Start agents (as background jobs)
+Start-Job -ScriptBlock { python agents/generic_agent.py --agent claude }
+Start-Job -ScriptBlock { python agents/generic_agent.py --agent qwen }
+```
+
+---
+
+## Kubernetes Deployment
+
+### Prerequisites
+
+- Kubernetes cluster (v1.20+)
+- kubectl configured
+- Helm v3+ (optional)
+
+### Manifests
+
+```yaml
+# k8s/api-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clowder-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clowder-api
+  template:
+    metadata:
+      labels:
+        app: clowder-api
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/theworstever1992/clowder-api:1.0.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: clowder-secrets
+              key: anthropic-api-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clowder-api
+spec:
+  selector:
+    app: clowder-api
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: LoadBalancer
+```
+
+### Deploy
+
+```bash
+# Create secrets
+kubectl create secret generic clowder-secrets \
+  --from-literal=anthropic-api-key=$ANTHROPIC_API_KEY \
+  --from-literal=dashscope-api-key=$DASHSCOPE_API_KEY
+
+# Apply manifests
+kubectl apply -f k8s/
+
+# Check status
+kubectl get pods
+kubectl get services
+```
+
+---
+
+## Environment Variables
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `DASHSCOPE_API_KEY` | Alibaba DashScope API key |
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLOWDER_ENV` | `dev` | Environment (dev, staging, prod) |
+| `CLOWDER_DEBUG` | `true` | Debug mode |
+| `CLOWDER_BOARD_DIR` | `board/` | Board directory |
+| `CLOWDER_LOG_DIR` | `logs/` | Log directory |
+| `CLOWDER_LOG_LEVEL` | `INFO` | Logging level |
+| `CLOWDER_WEB_HOST` | `0.0.0.0` | API host |
+| `CLOWDER_WEB_PORT` | `8000` | API port |
+| `CLOWDER_CORS_ORIGINS` | `localhost:3000` | CORS origins |
+
+---
+
+## Health Checks
+
+### API Health
+
+```bash
+curl http://localhost:8000/health
+```
+
+**Expected Response:**
+```json
+{
+  "status": "healthy",
+  "service": "clowder-api",
+  "board_dir": "/app/board"
+}
+```
+
+### Agent Health
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+---
+
+## Monitoring
+
+### Logs
+
+```bash
+# Docker
+docker-compose logs -f api
+docker-compose logs -f claude
+
+# Native
+tail -f logs/api.log
+tail -f logs/qwen.log
+```
+
+### Metrics
+
+```bash
+# System summary
+curl http://localhost:8000/api/analytics/summary
+
+# Completion trend
+curl http://localhost:8000/api/analytics/completion-trend?days=7
+```
+
+---
+
+## Troubleshooting
+
+### API Won't Start
+
+1. Check port 8000 is available
+2. Verify `.env` file exists
+3. Check logs: `docker-compose logs api`
+
+### Agents Not Connecting
+
+1. Verify API is running
+2. Check `CLOWDER_BOARD_DIR` matches
+3. Verify API keys are set
+
+### High Memory Usage
+
+1. Archive old tasks
+2. Reduce agent count
+3. Increase Docker memory limits
+
+---
+
+## Security
+
+### Production Checklist
+
+- [ ] Use strong API keys
+- [ ] Enable HTTPS (reverse proxy)
+- [ ] Set `CLOWDER_DEBUG=false`
+- [ ] Configure firewall rules
+- [ ] Enable log rotation
+- [ ] Set up monitoring alerts
+
+### Firewall Rules
+
+```bash
+# Allow API port (if exposed)
+ufw allow 8000/tcp
+
+# Allow only localhost (recommended)
+ufw allow from 127.0.0.1 to any port 8000
+```
+
+---
+
+## Backup & Recovery
+
+### Backup
+
+```bash
+# Backup all data
+tar czf clowder-backup-$(date +%Y%m%d).tar.gz board/ logs/
+```
+
+### Restore
+
+```bash
+# Stop services
+docker-compose down
+
+# Restore data
+tar xzf clowder-backup-20260308.tar.gz
+
+# Start services
 docker-compose up -d
 ```
 
 ---
 
-## Environment Variable Reference
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | yes (Claude) | — | Anthropic API key |
-| `DASHSCOPE_API_KEY` | yes (Qwen) | — | DashScope API key |
-| `CLOWDER_BOARD_DIR` | no | `./board` | Board directory path |
-| `CLOWDER_LOG_DIR` | no | `./logs` | Log directory path |
-| `CLOWDER_AGENT_WARNING_SECONDS` | no | `60` | Seconds before agent is "warning" |
-
----
-
-## CI/CD (GitHub Actions)
-
-Tests run automatically on push and pull requests to `main`. See `.github/workflows/test.yml`.
-
-The workflow:
-1. Checks out code
-2. Sets up Python 3.11 and 3.12 (matrix)
-3. Installs dependencies
-4. Runs `wake_up.py` to initialize test board
-5. Runs `pytest tests/ -v --tb=short`
-
-Dummy API keys are used — no real API calls during tests.
-
-To add a new test, create a file in `tests/` following pytest conventions.
-
----
-
-## Pre-Production Checklist
-
-- [ ] API keys are in `.env` (not committed to git)
-- [ ] `board/` and `logs/` directories exist (run `python wake_up.py`)
-- [ ] `filelock` is installed (`pip install filelock`) — prevents board corruption
-- [ ] At least one agent is running and registered (`python meow.py` shows it online)
-- [ ] API health check passes: `curl http://localhost:8000/health`
-- [ ] Logs directory is writable by agent processes
-- [ ] Board file is writable by all agents and the API
-
----
-
-## File Locations
-
-```
-kitty-collab-board/
-├── board/
-│   ├── board.json        # task board (agents read/write)
-│   ├── agents.json       # agent registry (agents write, operator reads)
-│   ├── archive.json      # archived done tasks
-│   ├── templates.json    # task templates
-│   └── audit.log         # audit trail (if audit module enabled)
-├── logs/
-│   ├── claude.log        # Claude agent log
-│   └── qwen.log          # Qwen agent log
-├── web/
-│   ├── backend/main.py   # FastAPI app
-│   └── frontend/         # React + TypeScript frontend
-├── agents/
-│   ├── base_agent.py     # base class
-│   ├── claude_agent.py   # Claude implementation
-│   └── qwen_agent.py     # Qwen implementation
-└── .github/
-    └── workflows/
-        ├── test.yml              # CI tests
-        └── docker-publish.yml    # Docker image publish
-```
-
----
-
-## Updating
-
-```bash
-git pull
-pip install -r requirements.txt   # pick up new dependencies
-python wake_up.py                  # in case board structure changed
-docker-compose build && docker-compose up -d  # if using Docker
-```
+*For development setup, see `DEVELOPER_GUIDE.md`*
