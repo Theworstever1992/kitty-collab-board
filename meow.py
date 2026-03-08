@@ -43,19 +43,194 @@ def run_add():
     subprocess.run([sys.executable, str(ROOT / "mission_control.py"), "add"])
 
 
-def run_spawn():
-    ps1 = ROOT / "windows" / "spawn_agents.ps1"
-    if ps1.exists():
-        subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ps1)])
+def list_agents():
+    """Parse agents.yaml and print agent names without spawning."""
+    import yaml
+    agents_yaml = ROOT / "agents.yaml"
+    if not agents_yaml.exists():
+        print("  agents.yaml not found. Create it first — see IMPROVEMENT_PLAN.md.")
+        return
+    with open(agents_yaml) as f:
+        cfg = yaml.safe_load(f)
+    agents = cfg.get("agents", [])
+    print(f"  Configured agents ({len(agents)}):")
+    for a in agents:
+        print(f"    {a['name']:12} | provider: {a.get('provider', '?'):14} | role: {a.get('role', '?')}")
+
+
+def run_spawn(extra_args: list = None):
+    if extra_args is None:
+        extra_args = []
+
+    # --list: just print agent names, no spawning
+    if "--list" in extra_args:
+        list_agents()
+        return
+
+    # Build optional --agent <name> passthrough
+    agent_args = []
+    if "--agent" in extra_args:
+        idx = extra_args.index("--agent")
+        if idx + 1 < len(extra_args):
+            agent_args = ["--agent", extra_args[idx + 1]]
+
+    agents_yaml = ROOT / "agents.yaml"
+    if not agents_yaml.exists():
+        print("  agents.yaml not found. Create it first — see IMPROVEMENT_PLAN.md.")
+        return
+
+    if os.name != "nt":
+        # Linux / Mac — use spawn_agents.sh
+        sh = ROOT / "spawn_agents.sh"
+        if not sh.exists():
+            print(f"  spawn_agents.sh not found at {sh}")
+            return
+        subprocess.run(["bash", str(sh)] + agent_args)
     else:
-        print("  spawn_agents.ps1 not found.")
+        # Windows — use PowerShell script
+        ps1 = ROOT / "windows" / "spawn_agents.ps1"
+        if not ps1.exists():
+            print("  spawn_agents.ps1 not found.")
+            return
+        ps_args = []
+        if agent_args:
+            ps_args = ["-Agent", agent_args[1]]
+        subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ps1)] + ps_args
+        )
 
 
-def quick_task(text: str):
+def quick_task(text: str, role: str = None, priority: str = "normal", skills: list = None):
     from mission_control import add_task
 
-    task_id = add_task(text, prompt=text)
+    task_id = add_task(text, prompt=text, role=role, priority=priority, skills=skills or [])
     print(f"  ✅ Task added: {task_id} — '{text}'")
+    if role:
+        print(f"     Role: {role}")
+    if skills:
+        print(f"     Skills: {', '.join(skills)}")
+
+
+# ------------------------------------------------------------------
+# TASK 6023: Task templates
+# ------------------------------------------------------------------
+
+TEMPLATES_FILE = ROOT / "board" / "templates.json"
+
+
+def _load_templates() -> dict:
+    if TEMPLATES_FILE.exists():
+        import json
+        try:
+            return json.loads(TEMPLATES_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_templates(templates: dict):
+    import json
+    TEMPLATES_FILE.parent.mkdir(exist_ok=True)
+    TEMPLATES_FILE.write_text(json.dumps(templates, indent=2), encoding="utf-8")
+
+
+def cmd_template(args: list):
+    """
+    meow template list                     → list saved templates
+    meow template save <name>              → save current task spec as template (interactive)
+    meow template use <name>               → create a task from template
+    meow template delete <name>            → delete a template
+    """
+    if not args or args[0] in ("list", "ls"):
+        templates = _load_templates()
+        if not templates:
+            print("  No templates saved. Use: meow template save <name>")
+            return
+        print(f"  Templates ({len(templates)}):")
+        for name, t in templates.items():
+            role = t.get("role") or "any"
+            skills = ", ".join(t.get("skills") or []) or "-"
+            print(f"    {name:20} | role: {role:12} | skills: {skills} | {t.get('description', '')[:40]}")
+        return
+
+    sub = args[0]
+
+    if sub == "save":
+        if len(args) < 2:
+            print("  Usage: meow template save <name>")
+            return
+        name = args[1]
+        print(f"\n  Saving template '{name}'")
+        desc = input("  Description: ").strip()
+        role = input("  Role (optional): ").strip() or None
+        priority = input("  Priority [normal]: ").strip() or "normal"
+        skills_raw = input("  Required skills (comma-separated, optional): ").strip()
+        skills = [s.strip() for s in skills_raw.split(",") if s.strip()] if skills_raw else []
+        prompt_tmpl = input("  Prompt template (use {var} for placeholders): ").strip()
+
+        templates = _load_templates()
+        templates[name] = {
+            "description": desc,
+            "role": role,
+            "priority": priority,
+            "skills": skills,
+            "prompt_template": prompt_tmpl,
+        }
+        _save_templates(templates)
+        print(f"  ✅ Template '{name}' saved.")
+        return
+
+    if sub == "use":
+        if len(args) < 2:
+            print("  Usage: meow template use <name>")
+            return
+        name = args[1]
+        templates = _load_templates()
+        if name not in templates:
+            print(f"  Template '{name}' not found. Run: meow template list")
+            return
+        t = templates[name]
+        print(f"\n  Using template '{name}': {t.get('description', '')}")
+
+        # Fill placeholders in prompt template
+        prompt_tmpl = t.get("prompt_template", "")
+        import re
+        placeholders = re.findall(r"\{(\w+)\}", prompt_tmpl)
+        values = {}
+        for p in placeholders:
+            values[p] = input(f"  {p}: ").strip()
+        prompt = prompt_tmpl.format(**values) if values else prompt_tmpl
+
+        title = input("  Task title: ").strip() or f"{name} task"
+
+        from mission_control import add_task
+        task_id = add_task(
+            title,
+            description=t.get("description", ""),
+            prompt=prompt,
+            role=t.get("role"),
+            priority=t.get("priority", "normal"),
+            skills=t.get("skills", []),
+        )
+        print(f"  ✅ Task created: {task_id} — '{title}'")
+        return
+
+    if sub == "delete":
+        if len(args) < 2:
+            print("  Usage: meow template delete <name>")
+            return
+        name = args[1]
+        templates = _load_templates()
+        if name not in templates:
+            print(f"  Template '{name}' not found.")
+            return
+        del templates[name]
+        _save_templates(templates)
+        print(f"  ✅ Template '{name}' deleted.")
+        return
+
+    print(f"  Unknown template subcommand: {sub}")
+    print("  Usage: meow template [list|save|use|delete] <name>")
 
 
 def show_status():
@@ -64,13 +239,21 @@ def show_status():
 
 HELP = """
 Commands:
-  meow                → show board status
-  meow mc             → open Mission Control TUI
-  meow wake           → run wake_up (initialize board + aliases)
-  meow add            → add a task interactively
-  meow spawn          → spawn all agents via PowerShell
-  meow task <text>    → quickly add a task from the command line
-  meow help           → show this help
+  meow                            → show board status
+  meow mc                         → open Mission Control TUI
+  meow wake                       → run wake_up (initialize board + aliases)
+  meow add                        → add a task interactively
+  meow spawn                      → spawn all agents
+  meow spawn --agent <name>       → spawn a single agent by name
+  meow spawn --list               → list configured agents
+  meow task <text>                → quickly add a task
+  meow task <text> --role <role>  → quick-add with role
+  meow task <text> --skills a,b   → quick-add with required skills
+  meow template list              → list saved task templates
+  meow template save <name>       → save a new task template
+  meow template use <name>        → create a task from a template
+  meow template delete <name>     → delete a template
+  meow help                       → show this help
 """
 
 
@@ -89,9 +272,27 @@ def main():
     elif cmd == "add":
         run_add()
     elif cmd == "spawn":
-        run_spawn()
+        run_spawn(extra_args=args[1:])
     elif cmd == "task" and len(args) > 1:
-        quick_task(" ".join(args[1:]))
+        # Parse optional --role, --priority, --skills flags
+        rest = args[1:]
+        role = None
+        priority = "normal"
+        skills = []
+        text_parts = []
+        i = 0
+        while i < len(rest):
+            if rest[i] == "--role" and i + 1 < len(rest):
+                role = rest[i + 1]; i += 2
+            elif rest[i] == "--priority" and i + 1 < len(rest):
+                priority = rest[i + 1]; i += 2
+            elif rest[i] == "--skills" and i + 1 < len(rest):
+                skills = [s.strip() for s in rest[i + 1].split(",") if s.strip()]; i += 2
+            else:
+                text_parts.append(rest[i]); i += 1
+        quick_task(" ".join(text_parts), role=role, priority=priority, skills=skills)
+    elif cmd == "template":
+        cmd_template(args[1:])
     elif cmd in ("help", "--help", "-h"):
         print(HELP)
     else:

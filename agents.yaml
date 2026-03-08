@@ -1,0 +1,41 @@
+# Kitty Collab Board — Agent Team Configuration
+# 
+# Define your agent team here. No code changes needed to add models.
+# Each agent gets a unique name, model, provider, and role.
+#
+# Provider options: anthropic, openai_compat, ollama, gemini
+# Role options: reasoning, code, research, summarization, general
+
+agents:
+  # Claude — Lead reasoning and planning
+  - name: claude
+    model: claude-sonnet-4-20250514
+    provider: anthropic
+    role: reasoning
+    max_tokens: 4096
+    # api_key_env: ANTHROPIC_API_KEY  # optional, has sensible default
+
+  # Qwen — Code generation and analysis
+  - name: qwen
+    model: qwen-plus
+    provider: openai_compat
+    role: code
+    max_tokens: 4096
+    api_key_env: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+
+  # Llama — Local summarization (requires Ollama running)
+  - name: llama
+    model: llama3.2
+    provider: ollama
+    role: summarization
+    max_tokens: 2048
+    base_url: http://localhost:11434
+
+  # Gemini — Research and cross-checking
+  - name: gemini
+    model: gemini-2.0-flash
+    provider: gemini
+    role: research
+    max_tokens: 4096
+    # api_key_env: GEMINI_API_KEY  # optional, has sensible default

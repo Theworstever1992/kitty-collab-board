@@ -1,0 +1,111 @@
+/**
+ * App.css — Kitty Collab Board styles
+ */
+
+/* Import Bootstrap */
+@import 'bootstrap/dist/css/bootstrap.min.css';
+
+/* App layout */
+.app {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* Navbar branding */
+.brand-cat {
+  font-size: 1.5rem;
+  margin-right: 0.5rem;
+}
+
+.brand-text {
+  font-weight: 600;
+  margin-right: 0.75rem;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+/* Task card enhancements */
+.card {
+  border: none;
+  border-radius: 0.5rem;
+}
+
+.card-title {
+  font-weight: 600;
+}
+
+/* Status badges */
+.badge {
+  font-weight: 500;
+}
+
+/* Agent panel */
+.agent-status-icon {
+  font-size: 0.875rem;
+}
+
+/* Log viewer dark theme */
+.log-viewer {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+
+/* Custom scrollbar for log viewer */
+.log-viewer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.log-viewer::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.log-viewer::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.log-viewer::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .brand-subtitle {
+    display: none;
+  }
+}
+
+/* Animation for live indicator */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.live-indicator {
+  animation: pulse 2s infinite;
+}
+
+/* Task priority colors */
+.priority-critical {
+  border-left: 4px solid #dc3545;
+}
+
+.priority-high {
+  border-left: 4px solid #fd7e14;
+}
+
+.priority-normal {
+  border-left: 4px solid #6c757d;
+}
+
+.priority-low {
+  border-left: 4px solid #0dcaf0;
+}

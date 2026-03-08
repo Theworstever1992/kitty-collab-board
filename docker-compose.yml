@@ -1,6 +1,34 @@
 version: '3.8'
 
+# Clowder — Multi-agent AI collaboration system
+# TASK 6011: Full multi-service compose with web backend + health checks
+
 services:
+
+  # --- Web API (FastAPI + WebSocket) ---
+  api:
+    build: .
+    container_name: clowder-api
+    command: uvicorn web.backend.main:app --host 0.0.0.0 --port 8000 --no-reload
+    env_file: .env
+    environment:
+      - CLOWDER_BOARD_DIR=/app/board
+      - CLOWDER_LOG_DIR=/app/logs
+      - CLOWDER_WEB_RELOAD=false
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./board:/app/board
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # --- Claude agent ---
   claude:
     build: .
     container_name: clowder-claude
@@ -13,7 +41,16 @@ services:
       - ./board:/app/board
       - ./logs:/app/logs
     restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; open(os.environ.get('CLOWDER_BOARD_DIR', '/app/board') + '/board.json')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
 
+  # --- Qwen agent ---
   qwen:
     build: .
     container_name: clowder-qwen
@@ -26,5 +63,20 @@ services:
       - ./board:/app/board
       - ./logs:/app/logs
     restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; open(os.environ.get('CLOWDER_BOARD_DIR', '/app/board') + '/board.json')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
 
-# Volumes are mapped to local directories for persistence and host-side monitoring
+# Shared volumes for persistence and host-side monitoring
+# board/ and logs/ are bind-mounted so the operator can access them from the host
+
+# Profiles:
+#   docker-compose up              → all services
+#   docker-compose up api          → API only
+#   docker-compose up api claude   → API + Claude only
+#   docker-compose --profile init up → (future: init service)

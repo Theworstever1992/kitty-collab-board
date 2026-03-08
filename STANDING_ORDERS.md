@@ -34,11 +34,15 @@ Your job is to collaborate with other agents to complete tasks assigned by the h
 
 ## 🐾 Agent Roster
 
-| Agent | Model | Role |
-|-------|-------|------|
-| claude | Claude (Anthropic) | Lead reasoning, planning |
-| qwen | Qwen (Alibaba) | Code generation, analysis |
-| gemini | Gemini (Google) | Research, cross-checking |
+| Agent | Model | Role | Status |
+|-------|-------|------|--------|
+| claude | Claude (Anthropic) | Lead reasoning, planning | ✅ live |
+| qwen | Qwen (Alibaba) | Code generation, analysis | ✅ live |
+| gemini | Gemini (Google) | Research, cross-checking | 🔲 planned |
+| llama | Llama via Ollama (local) | Summarization, local tasks | 🔲 planned |
+| *(any)* | any OpenAI-compatible endpoint | configurable via `agents.yaml` | 🔲 planned |
+
+See `TODO.md` for the roadmap to make any model drop-in compatible.
 
 ---
 
@@ -52,4 +56,4 @@ Your job is to collaborate with other agents to complete tasks assigned by the h
 
 ---
 
-*Last updated: 2026-02-27*
+*Last updated: 2026-03-06*
