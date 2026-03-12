@@ -83,7 +83,7 @@ def status_emoji(status: str) -> str:
 def print_dashboard():
     os.system("cls" if os.name == "nt" else "clear")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"""
+    print(rf"""
   /\_____/\   🐱 KITTY COLLAB BOARD — MISSION CONTROL
  /  o   o  \  codename: CLOWDER
 ( ==  ^  == )  {now}
@@ -144,9 +144,15 @@ def curses_loop(stdscr):
     curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
     while True:
+        # Check initial key before drawing
         key = stdscr.getch()
         if key == ord("q"):
-            break
+            return
+        elif key == ord("a"):
+            curses.endwin()
+            cli_add_task()
+            print("\n  Press Enter to return to Mission Control...")
+            input()
 
         stdscr.clear()
         h, w = stdscr.getmaxyx()
@@ -188,7 +194,22 @@ def curses_loop(stdscr):
                 break
 
         stdscr.refresh()
-        time.sleep(3)
+
+        # Custom wait logic to handle keys immediately during the 3-second sleep
+        for _ in range(30):
+            time.sleep(0.1)
+            key = stdscr.getch()
+            if key == ord("q"):
+                return
+            elif key == ord("r"):
+                break
+            elif key == ord("a"):
+                curses.endwin()
+                cli_add_task()
+                print("\n  Press Enter to return to Mission Control...")
+                input()
+                stdscr.clear()
+                break
 
 
 # ------------------------------------------------------------------
