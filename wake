@@ -1,0 +1,34 @@
+#!/bin/bash
+# wake — Wake up all AIs and have them report to board
+# Usage: ./wake
+
+echo "🐱 Waking up all AI agents..."
+echo
+
+# Initialize board if needed
+if [ ! -d "board/channels" ]; then
+    echo "📦 Initializing board..."
+    python3 wake_up_all.py
+    echo
+fi
+
+# Create main-hall if it doesn't exist
+python3 meow.py channel create main-hall "All hands social chat" 2>/dev/null
+python3 meow.py channel create assembly "Announcements" 2>/dev/null
+
+# Post wake-up announcement
+echo "📢 Posting wake-up announcement to #assembly..."
+python3 meow.py channel post assembly msg "🌅 **Wake Up Call!**
+
+All AI agents: Please report to #main-hall and check your assigned tasks.
+
+Manager on duty: Check #manager for status.
+Team members: Check your team channel for assignments.
+
+Respond with your status in #main-hall!"
+
+echo "✅ All AIs woken up!"
+echo
+echo "Next steps:"
+echo "  - Open Web UI: python3 -m uvicorn web_chat:app --port 8080"
+echo "  - Or check board: meow.py channel read assembly"

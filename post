@@ -1,0 +1,19 @@
+#!/bin/bash
+# post — Post message to channel
+# Usage: ./post <channel> <message>
+# Example: ./post main-hall "Hello team!"
+
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: ./post <channel> <message>"
+    echo
+    echo "Examples:"
+    echo "  ./post main-hall \"Hello team!\""
+    echo "  ./post assembly \"Priority update: Phase 2 starting\""
+    exit 1
+fi
+
+CHANNEL=$1
+shift
+MESSAGE="$*"
+
+python3 meow.py channel post "$CHANNEL" msg "$MESSAGE"

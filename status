@@ -1,0 +1,22 @@
+#!/bin/bash
+# status — Quick status check
+# Usage: ./status
+
+echo "🐱 Kitty Collab Board Status"
+echo "============================"
+echo
+
+echo "📋 Channels:"
+python3 meow.py channel list
+echo
+
+echo "👥 Agent Profiles:"
+python3 meow.py profile list
+echo
+
+echo "👔 Current Manager:"
+python3 meow.py manager current
+echo
+
+echo "📊 Board Files:"
+ls -la board/ | head -20

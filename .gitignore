@@ -1,14 +1,33 @@
-# .gitignore — Kitty Collab Board
-.env
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
 *.egg-info/
-dist/
-build/
-logs/*.log
-board/board.json
-board/agents.json
-.venv/
+.eggs/
+
+# Virtual environments
 venv/
-*.spec.bak
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Board data (persisted, but ignore by default)
+board/
+
+# Logs
+logs/
+
+# Environment
+.env

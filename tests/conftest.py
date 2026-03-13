@@ -1,123 +1,86 @@
-"""
-conftest.py — Kitty Collab Board
-Pytest fixtures and configuration.
-"""
 
-import json
+import asyncio
+import importlib
 import os
-import tempfile
-import shutil
 from pathlib import Path
+from typing import AsyncGenerator
 
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# NullPool mode: must be set before backend.database is imported so the
+# module-level engine is created without a connection pool. This prevents
+# asyncpg connections from being bound to a specific event loop, which would
+# cause "got Future attached to a different loop" errors when multiple test
+# modules each create their own TestClient on different event loops.
+os.environ.setdefault("TESTING", "1")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://clowder:clowder@localhost:5433/clowder_test")
 
-@pytest.fixture
-def temp_board_dir():
+# Import Base and models from backend
+from backend.database import Base
+import backend.models  # Ensures all models are registered on Base.metadata
+
+# Test database URL — using the postgres-test service on port 5433
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://clowder:clowder@localhost:5433/clowder_test"
+)
+
+@pytest_asyncio.fixture(scope="function")
+async def test_engine():
     """
-    Create a temporary board directory for isolated tests.
-    Automatically cleaned up after test.
+    Create a function-scoped engine. 
+    Creates all tables at the start and drops them at the end.
     """
-    temp_dir = tempfile.mkdtemp(prefix="clowder_test_")
-    board_dir = Path(temp_dir) / "board"
-    board_dir.mkdir()
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     
-    # Create empty board.json
-    board_file = board_dir / "board.json"
-    board_file.write_text(json.dumps({
-        "created_at": "2026-03-06T00:00:00",
-        "tasks": []
-    }, indent=2))
-    
-    # Create empty agents.json
-    agents_file = board_dir / "agents.json"
-    agents_file.write_text("{}")
-    
-    # Set environment variable for test duration
-    old_env = os.environ.get("CLOWDER_BOARD_DIR")
-    os.environ["CLOWDER_BOARD_DIR"] = str(board_dir)
-    
-    yield board_dir
-    
-    # Cleanup
-    if old_env:
-        os.environ["CLOWDER_BOARD_DIR"] = old_env
-    else:
-        os.environ.pop("CLOWDER_BOARD_DIR", None)
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def sample_task():
-    """Return a sample task dict for testing."""
-    return {
-        "id": "task_1234567890",
-        "title": "Test Task",
-        "description": "A test task for unit tests",
-        "prompt": "Do something for testing",
-        "status": "pending",
-        "created_at": "2026-03-06T00:00:00",
-        "claimed_by": None,
-        "result": None,
-        "role": None,
-        "priority": "normal",
-        "priority_order": 2,
-    }
-
-
-@pytest.fixture
-def sample_task_critical():
-    """Return a critical priority task."""
-    task = sample_task()
-    task["priority"] = "critical"
-    task["priority_order"] = 0
-    return task
-
-
-@pytest.fixture
-def sample_task_with_role():
-    """Return a task with role assigned."""
-    task = sample_task()
-    task["role"] = "code"
-    return task
-
-
-@pytest.fixture
-def mock_provider():
-    """
-    Mock provider for testing agent logic without API calls.
-    """
-    class MockProvider:
-        def __init__(self, model="mock-model", available=True):
-            self.model = model
-            self._available = available
-            self.call_count = 0
-            self.last_prompt = None
+    # Create tables
+    async with engine.begin() as conn:
+        from sqlalchemy import text
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.run_sync(Base.metadata.create_all)
         
-        def complete(self, prompt: str, system: str = "", config: dict = None) -> str:
-            self.call_count += 1
-            self.last_prompt = prompt
-            return f"Mock response to: {prompt[:50]}..."
-        
-        def is_available(self) -> bool:
-            return self._available
-    
-    return MockProvider
+    yield engine
 
+    # Clear data without dropping schema — preserves tables for any module-scoped
+    # TestClient still running in the same pytest session.
+    async with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
 
-@pytest.fixture
-def failing_mock_provider():
+    await engine.dispose()
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """
-    Mock provider that always fails (for error handling tests).
+    Function-scoped session factory.
+    Rolls back every transaction after test completion to ensure isolation.
     """
-    class FailingMockProvider:
-        def __init__(self, error_message="Provider unavailable"):
-            self.error_message = error_message
-        
-        def complete(self, prompt: str, system: str = "", config: dict = None) -> str:
-            raise RuntimeError(self.error_message)
-        
-        def is_available(self) -> bool:
-            return False
+    SessionLocal = async_sessionmaker(
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
     
-    return FailingMockProvider
+    async with SessionLocal() as session:
+        yield session
+        await session.rollback()
+
+@pytest.fixture()
+def board_dir(monkeypatch, tmp_path):
+    """
+    Override CLOWDER_BOARD_DIR and reload affected modules.
+    """
+    monkeypatch.setenv("CLOWDER_BOARD_DIR", str(tmp_path))
+    import agents.atomic
+    import agents.channels
+    import agents.context_manager
+    import agents.file_backend
+    import agents.agent_client
+    import backend.config
+    
+    for mod in [agents.atomic, agents.channels, agents.context_manager, agents.file_backend, agents.agent_client, backend.config]:
+        importlib.reload(mod)
+        
+    return tmp_path

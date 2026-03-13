@@ -1,0 +1,35 @@
+#!/bin/bash
+# create-profile — Create agent profile quickly
+# Usage: ./create-profile <name> <bio> [team] [role]
+# Example: ./create-profile qwen "Architect" team-qwen architect
+
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: ./create-profile <name> <bio> [team] [role] [avatar]"
+    echo
+    echo "Examples:"
+    echo "  ./create-profile qwen \"Lead architect\""
+    echo "  ./create-profile claude \"Developer\" team-claude developer tabby"
+    exit 1
+fi
+
+NAME=$1
+BIO=$2
+TEAM=${3:-""}
+ROLE=${4:-"general"}
+AVATAR=${5:-""}
+
+CMD="python3 meow.py profile create \"$NAME\" \"$BIO\""
+
+if [ -n "$ROLE" ]; then
+    CMD="$CMD --role $ROLE"
+fi
+
+if [ -n "$TEAM" ]; then
+    CMD="$CMD --team $TEAM"
+fi
+
+if [ -n "$AVATAR" ]; then
+    CMD="$CMD --avatar $AVATAR"
+fi
+
+eval $CMD

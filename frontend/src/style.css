@@ -1,0 +1,90 @@
+/* Clowder v2 — cat-themed design tokens */
+:root {
+  --color-bg: #1a1814;
+  --color-surface: #252220;
+  --color-surface-2: #2e2b28;
+  --color-border: #3d3a36;
+  --color-amber: #d4a843;
+  --color-amber-dim: #a07c2a;
+  --color-cream: #f0e6d0;
+  --color-cream-dim: #b8a88a;
+  --color-green: #5a9e6f;
+  --color-red: #c05a4a;
+  --color-blue: #4a7fa8;
+  --color-text: #e8ddd0;
+  --color-text-dim: #8a7e72;
+  --sidebar-width: 220px;
+  --right-panel-width: 200px;
+  --font: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--color-bg);
+  color: var(--color-text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app { height: 100vh; display: flex; flex-direction: column; }
+
+a { color: var(--color-amber); text-decoration: none; }
+a:hover { color: var(--color-cream); }
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.875rem;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-primary {
+  background: var(--color-amber);
+  color: var(--color-bg);
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+}
+.btn-primary:hover { background: var(--color-amber-dim); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-dim);
+  padding: 0.4rem 0.75rem;
+}
+.btn-ghost:hover { background: var(--color-surface-2); color: var(--color-text); }
+
+input, textarea {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  width: 100%;
+}
+input:focus, textarea:focus { border-color: var(--color-amber); }
+
+.badge {
+  display: inline-block;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+}
+.badge-green  { background: #1d3a26; color: var(--color-green); }
+.badge-amber  { background: #3a2d12; color: var(--color-amber); }
+.badge-red    { background: #3a1a14; color: var(--color-red); }
+.badge-grey   { background: var(--color-surface-2); color: var(--color-text-dim); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }

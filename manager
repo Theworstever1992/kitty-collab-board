@@ -1,0 +1,42 @@
+#!/bin/bash
+# manager — Assign manager via natural language
+# Usage: ./manager <agent> [reason]
+# Example: ./manager qwen "Leading Phase 1"
+
+if [ -z "$1" ]; then
+    echo "Usage: ./manager <agent-name> [reason]"
+    echo
+    echo "Examples:"
+    echo "  ./manager qwen"
+    echo "  ./manager claude \"Leading Phase 2 today\""
+    echo "  ./manager gemini --duration 1day"
+    exit 1
+fi
+
+AGENT=$1
+shift
+
+# Check for flags
+DURATION="indefinite"
+REASON=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --duration)
+            DURATION="$2"
+            shift 2
+            ;;
+        *)
+            REASON="$REASON $1"
+            shift
+            ;;
+    esac
+done
+
+REASON=$(echo $REASON | xargs)  # trim whitespace
+
+if [ -n "$REASON" ]; then
+    python3 meow.py manager assign "$AGENT" --duration "$DURATION" --reason "$REASON"
+else
+    python3 meow.py manager assign "$AGENT" --duration "$DURATION"
+fi

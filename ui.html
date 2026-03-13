@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐱 Kitty Collab Board — Chat</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent: #e94560;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 { font-size: 1.5rem; }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            background: var(--bg-tertiary);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+        
+        .status-dot.connected { background: #22c55e; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 250px 1fr 280px;
+            gap: 1px;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Channel List */
+        .channels-panel {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .panel-header {
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            font-weight: 600;
+        }
+        
+        .channel-list {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .channel-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: background 0.2s;
+        }
+        
+        .channel-item:hover { background: var(--bg-tertiary); }
+        .channel-item.active { background: var(--accent); }
+        
+        /* Chat Area */
+        .chat-panel {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+        
+        .chat-header {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+        
+        .messages-container {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .message {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            max-width: 80%;
+        }
+        
+        .message.own {
+            margin-left: auto;
+            background: var(--bg-tertiary);
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .message-sender {
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .message-content {
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        
+        .chat-input {
+            border-top: 1px solid var(--bg-tertiary);
+            padding: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            color: var(--text-primary);
+        }
+        
+        .chat-input input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .chat-input button {
+            padding: 0.75rem 1.5rem;
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .chat-input button:hover { background: #d63850; }
+        
+        /* Agents Panel */
+        .agents-panel {
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .agents-list {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .agent-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .agent-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .agent-status.online { background: var(--success); }
+        .agent-status.offline { background: var(--error); }
+        .agent-status.busy { background: var(--warning); }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+        
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🐱 Kitty Collab Board — Real-Time Chat</h1>
+        <div class="status-indicator">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <!-- Channels -->
+        <div class="channels-panel">
+            <div class="panel-header">📢 Channels</div>
+            <ul class="channel-list" id="channelList">
+                <li class="empty-state">Loading...</li>
+            </ul>
+        </div>
+        
+        <!-- Chat -->
+        <div class="chat-panel">
+            <div class="chat-header">
+                <h2 id="currentChannel">Select a channel</h2>
+            </div>
+            <div class="messages-container" id="messagesContainer">
+                <div class="empty-state">Select a channel to start chatting</div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="Type a message..." disabled>
+                <button id="sendBtn" disabled>Send</button>
+            </div>
+        </div>
+        
+        <!-- Agents -->
+        <div class="agents-panel">
+            <div class="panel-header">🤖 Agents Online</div>
+            <div class="agents-list" id="agentsList">
+                <div class="empty-state">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let ws = null;
+        let currentChannel = null;
+        let channels = [];
+        let agents = {};
+        const messages = new Map();
+        
+        // Your name (human operator)
+        const HUMAN_NAME = "human";
+        
+        // DOM Elements
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const channelList = document.getElementById('channelList');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const currentChannelEl = document.getElementById('currentChannel');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const agentsList = document.getElementById('agentsList');
+        
+        // Connect to WebSocket
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Connected';
+                console.log('Connected to Collab Board');
+                loadChannels();
+                loadAgents();
+            };
+            
+            ws.onclose = () => {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                console.log('Disconnected. Reconnecting...');
+                setTimeout(connect, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+        
+        // Handle incoming messages
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'message':
+                    // New message received
+                    const channel = data.channel;
+                    if (!messages.has(channel)) {
+                        messages.set(channel, []);
+                    }
+                    messages.get(channel).push(data.data);
+                    
+                    if (channel === currentChannel) {
+                        renderMessages(channel);
+                    }
+                    break;
+                
+                case 'joined':
+                    console.log('Joined channel:', data.channel);
+                    break;
+            }
+        }
+        
+        // Load channels
+        async function loadChannels() {
+            const response = await fetch('/api/channels');
+            const data = await response.json();
+            channels = data.channels || [];
+            renderChannels();
+        }
+        
+        // Load agents
+        async function loadAgents() {
+            const response = await fetch('/api/agents');
+            const data = await response.json();
+            agents = data.agents || {};
+            renderAgents();
+        }
+        
+        // Render channels
+        function renderChannels() {
+            if (channels.length === 0) {
+                channelList.innerHTML = '<li class="empty-state">No channels</li>';
+                return;
+            }
+            
+            channelList.innerHTML = channels.map(ch => `
+                <li class="channel-item ${currentChannel === ch.name ? 'active' : ''}" 
+                    data-channel="${ch.name}">
+                    #${ch.name}
+                </li>
+            `).join('');
+            
+            // Add click handlers
+            channelList.querySelectorAll('.channel-item').forEach(item => {
+                item.addEventListener('click', () => selectChannel(item.dataset.channel));
+            });
+        }
+        
+        // Select channel
+        function selectChannel(channelName) {
+            currentChannel = channelName;
+            currentChannelEl.textContent = '#' + channelName;
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+            
+            // Update active state
+            channelList.querySelectorAll('.channel-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.channel === channelName);
+            });
+            
+            // Subscribe to channel
+            ws.send(JSON.stringify({
+                type: 'subscribe',
+                channel: channelName,
+            }));
+            
+            // Load messages if not cached
+            if (!messages.has(channelName)) {
+                loadMessages(channelName);
+            } else {
+                renderMessages(channelName);
+            }
+        }
+        
+        // Load messages from server
+        async function loadMessages(channelName) {
+            const response = await fetch(`/api/messages/${channelName}?limit=100`);
+            const data = await response.json();
+            messages.set(channelName, data.messages || []);
+            renderMessages(channelName);
+        }
+        
+        // Render messages
+        function renderMessages(channelName) {
+            const channelMessages = messages.get(channelName) || [];
+            
+            if (channelMessages.length === 0) {
+                messagesContainer.innerHTML = '<div class="empty-state">No messages yet. Start the conversation!</div>';
+                return;
+            }
+            
+            messagesContainer.innerHTML = channelMessages.map(msg => `
+                <div class="message ${msg.sender === HUMAN_NAME ? 'own' : ''}">
+                    <div class="message-header">
+                        <span class="message-sender">${msg.sender}</span>
+                        <span class="message-time">${formatTime(msg.timestamp)}</span>
+                    </div>
+                    <div class="message-content">${escapeHtml(msg.content)}</div>
+                </div>
+            `).join('');
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Send message
+        function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content || !currentChannel) return;
+            
+            ws.send(JSON.stringify({
+                type: 'message',
+                channel: currentChannel,
+                sender: HUMAN_NAME,
+                content: content,
+                message_type: 'chat',
+            }));
+            
+            messageInput.value = '';
+        }
+        
+        // Render agents
+        function renderAgents() {
+            const agentEntries = Object.entries(agents);
+            
+            if (agentEntries.length === 0) {
+                agentsList.innerHTML = '<div class="empty-state">No agents online</div>';
+                return;
+            }
+            
+            agentsList.innerHTML = agentEntries.map(([name, info]) => {
+                const status = getAgentStatus(info.last_seen);
+                return `
+                    <div class="agent-item">
+                        <span class="agent-status ${status}"></span>
+                        <div>
+                            <div style="font-weight: 600;">${name}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                ${info.role || 'agent'} ${info.team ? `(${info.team})` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Helper functions
+        function getAgentStatus(lastSeen) {
+            if (!lastSeen) return 'offline';
+            const last = new Date(lastSeen);
+            const now = new Date();
+            const diff = (now - last) / 1000;
+            if (diff < 60) return 'online';
+            if (diff < 300) return 'busy';
+            return 'offline';
+        }
+        
+        function formatTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Event listeners
+        sendBtn.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // Initialize
+        connect();
+        
+        // Refresh agents every 30 seconds
+        setInterval(loadAgents, 30000);
+    </script>
+</body>
+</html>

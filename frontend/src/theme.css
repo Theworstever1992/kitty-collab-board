@@ -1,0 +1,76 @@
+/* ============================================================
+   Clowder — Cat-Themed Design Tokens
+   Warm amber/charcoal/cream with paw print accents
+   ============================================================ */
+
+:root {
+  /* Core palette */
+  --color-bg:         #1a1612;  /* deep warm charcoal */
+  --color-surface:    #23201a;  /* card surface */
+  --color-surface-2:  #2c2820;  /* nested surface */
+  --color-border:     #3a3428;  /* subtle border */
+
+  /* Accent */
+  --color-amber:      #f59e0b;  /* main cat amber */
+  --color-amber-dim:  #92610a;  /* muted amber */
+  --color-green:      #4ade80;  /* success */
+
+  /* Text */
+  --color-text:       #f5edd6;  /* cream text */
+  --color-text-dim:   #8c7e68;  /* muted text */
+  --color-cream-dim:  #c5b89a;  /* readable body text */
+
+  /* Radius */
+  --radius:    6px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Paw print accent (used in nav) */
+  --paw: '🐾';
+}
+
+/* Global reset additions on top of style.css */
+* { box-sizing: border-box; }
+body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-amber-dim); }
+
+/* Shared input / button tokens */
+input, textarea, select {
+  font-family: var(--font-sans);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  padding: 0.4rem 0.6rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--color-amber); }
+
+.btn-primary {
+  background: var(--color-amber); color: #1a1612;
+  border: none; border-radius: var(--radius); padding: 0.45rem 1rem;
+  font-weight: 600; font-size: 0.875rem; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent; color: var(--color-text-dim);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: 0.4rem 0.85rem; font-size: 0.875rem; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { border-color: var(--color-amber); color: var(--color-amber); }
+
+/* Nav paw accent */
+nav .paw::before { content: var(--paw); margin-right: 0.25rem; }

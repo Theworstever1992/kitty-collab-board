@@ -1,0 +1,27 @@
+#!/bin/bash
+# handoff — Manager hands off to successor
+# Usage: ./handoff <new-manager> [notes]
+# Example: ./handoff claude "End of day, Phase 1 complete"
+
+if [ -z "$1" ]; then
+    echo "Usage: ./handoff <new-manager-name> [notes]"
+    echo
+    echo "Examples:"
+    echo "  ./handoff claude"
+    echo "  ./handoff gemini \"Phase 1 done, starting Phase 2\""
+    exit 1
+fi
+
+NEW_MANAGER=$1
+shift
+
+NOTES=""
+if [ $# -gt 0 ]; then
+    NOTES="$*"
+fi
+
+if [ -n "$NOTES" ]; then
+    python3 meow.py manager handoff "$NEW_MANAGER" --notes "$NOTES"
+else
+    python3 meow.py manager handoff "$NEW_MANAGER"
+fi

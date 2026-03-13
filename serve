@@ -1,0 +1,15 @@
+#!/bin/bash
+# serve — Start the Web Chat Server
+# Usage: ./serve [port]
+
+PORT=${1:-8080}
+
+echo "🐱 Starting Kitty Collab Board Web Server..."
+echo
+echo "📡 Web UI: http://localhost:$PORT"
+echo "💬 WebSocket: ws://localhost:$PORT/ws"
+echo
+echo "Press Ctrl+C to stop"
+echo
+
+python3 -m uvicorn web_chat:app --port $PORT --host 0.0.0.0

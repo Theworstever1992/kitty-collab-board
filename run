@@ -1,0 +1,92 @@
+#!/bin/bash
+# run — Run Kitty Collab Board in Docker
+# Usage: ./run [command]
+# 
+# Examples:
+#   ./run              # Start everything (web + initialize if needed)
+#   ./run up           # Start web server
+#   ./run shell        # Open interactive shell
+#   ./run status       # Run status command
+#   ./run manager qwen # Assign manager
+
+set -e
+
+COMPOSE="docker compose"
+
+# Initialize if needed
+if [ ! -d "board/channels" ]; then
+    echo "📦 Initializing board..."
+    $COMPOSE --profile init up init
+    echo
+fi
+
+# No argument - start web server
+if [ -z "$1" ]; then
+    echo "🐱 Starting Kitty Collab Board..."
+    echo
+    echo "📡 Web UI: http://localhost:8080"
+    echo
+    echo "💡 Commands:"
+    echo "   ./run shell        # Interactive shell"
+    echo "   ./run manager qwen # Assign manager"
+    echo "   ./run wake         # Wake all AIs"
+    echo "   ./run status       # Check status"
+    echo
+    echo "Press Ctrl+C to stop"
+    echo
+    $COMPOSE up -d
+    $COMPOSE logs -f web
+    exit 0
+fi
+
+# Handle commands
+case "$1" in
+    up|start|web)
+        $COMPOSE up -d
+        echo "✅ Web server started: http://localhost:8080"
+        ;;
+    down|stop)
+        $COMPOSE down
+        echo "✅ Stopped"
+        ;;
+    shell|sh|bash)
+        echo "🐚 Opening interactive shell..."
+        echo "Type 'exit' to return"
+        echo
+        $COMPOSE --profile shell run --rm shell
+        ;;
+    logs)
+        shift
+        $COMPOSE logs -f web
+        ;;
+    restart)
+        $COMPOSE restart
+        echo "✅ Restarted"
+        ;;
+    status)
+        $COMPOSE --profile shell run --rm shell ./status
+        ;;
+    wake)
+        $COMPOSE --profile shell run --rm shell ./wake
+        ;;
+    manager)
+        shift
+        $COMPOSE --profile shell run --rm shell ./manager "$@"
+        ;;
+    handoff)
+        shift
+        $COMPOSE --profile shell run --rm shell ./handoff "$@"
+        ;;
+    post)
+        shift
+        $COMPOSE --profile shell run --rm shell ./post "$@"
+        ;;
+    read)
+        shift
+        $COMPOSE --profile shell run --rm shell ./read "$@"
+        ;;
+    *)
+        # Pass through to shell
+        $COMPOSE --profile shell run --rm shell "$@"
+        ;;
+esac

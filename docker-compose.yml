@@ -1,82 +1,137 @@
-version: '3.8'
-
-# Clowder — Multi-agent AI collaboration system
-# TASK 6011: Full multi-service compose with web backend + health checks
+# Kitty Collab Board — Docker Compose
+# v1: file-based chat (port 8080) always on
+# v2: PostgreSQL API (port 9000) via --profile v2
 
 services:
+  # PostgreSQL + pgvector (v2 Test Database)
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    container_name: kitty-collab-postgres-test
+    profiles:
+      - test
+    environment:
+      POSTGRES_USER: clowder
+      POSTGRES_PASSWORD: clowder
+      POSTGRES_DB: clowder_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clowder -d clowder_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
-  # --- Web API (FastAPI + WebSocket) ---
+  # PostgreSQL + pgvector (v2 database)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: kitty-collab-postgres
+    environment:
+      POSTGRES_USER: clowder
+      POSTGRES_PASSWORD: clowder
+      POSTGRES_DB: clowder
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clowder -d clowder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # v2 API Server (FastAPI + PostgreSQL)
   api:
     build: .
-    container_name: clowder-api
-    command: uvicorn web.backend.main:app --host 0.0.0.0 --port 8000 --no-reload
-    env_file: .env
+    container_name: kitty-collab-api
+    profiles:
+      - v2
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./board:/app/board:rw
+      - ./:/app:ro
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://clowder:clowder@postgres:5432/clowder
+      - CLOWDER_BOARD_DIR=/app/board
+      - CLOWDER_API_PORT=9000
+      - CLOWDER_DEBUG=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
+    restart: unless-stopped
+
+  # Web Chat Server (v1 — always on, port 8080)
+  web:
+    build: .
+    container_name: kitty-collab-web
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./board:/app/board:rw
+      - ./:/app:ro
     environment:
       - CLOWDER_BOARD_DIR=/app/board
-      - CLOWDER_LOG_DIR=/app/logs
-      - CLOWDER_WEB_RELOAD=false
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./board:/app/board
-      - ./logs:/app/logs
+      - CLOWDER_DEBUG=true
+      - CLOWDER_WEB_PORT=8080
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/channels')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-  # --- Claude agent ---
-  claude:
+  # Nginx — serves Vue dist/ and proxies /api + /ws to backend (v2 production)
+  nginx:
+    image: nginx:alpine
+    container_name: kitty-collab-nginx
+    profiles:
+      - v2
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Interactive Shell
+  shell:
     build: .
-    container_name: clowder-claude
-    command: python agents/claude_agent.py
-    env_file: .env
-    environment:
-      - CLOWDER_BOARD_DIR=/app/board
-      - CLOWDER_LOG_DIR=/app/logs
+    container_name: kitty-collab-shell
+    profiles:
+      - shell
     volumes:
       - ./board:/app/board
-      - ./logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os; open(os.environ.get('CLOWDER_BOARD_DIR', '/app/board') + '/board.json')"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-
-  # --- Qwen agent ---
-  qwen:
-    build: .
-    container_name: clowder-qwen
-    command: python agents/qwen_agent.py
-    env_file: .env
+      - ./:/app:rw
     environment:
       - CLOWDER_BOARD_DIR=/app/board
-      - CLOWDER_LOG_DIR=/app/logs
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash
+    command: "-c"
+
+  # Auto-Initialize (run once to create channels)
+  init:
+    build: .
+    container_name: kitty-collab-init
+    profiles:
+      - init
     volumes:
       - ./board:/app/board
-      - ./logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os; open(os.environ.get('CLOWDER_BOARD_DIR', '/app/board') + '/board.json')"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
+    environment:
+      - CLOWDER_BOARD_DIR=/app/board
+    command: python wake_up_all.py
 
-# Shared volumes for persistence and host-side monitoring
-# board/ and logs/ are bind-mounted so the operator can access them from the host
+volumes:
+  postgres_data:
 
-# Profiles:
-#   docker-compose up              → all services
-#   docker-compose up api          → API only
-#   docker-compose up api claude   → API + Claude only
-#   docker-compose --profile init up → (future: init service)
+networks:
+  default:
+    name: kitty-collab

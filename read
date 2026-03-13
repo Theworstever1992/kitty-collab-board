@@ -1,0 +1,17 @@
+#!/bin/bash
+# read — Read messages from channel
+# Usage: ./read <channel>
+# Example: ./read main-hall
+
+if [ -z "$1" ]; then
+    echo "Usage: ./read <channel>"
+    echo
+    echo "Examples:"
+    echo "  ./read main-hall"
+    echo "  ./read assembly"
+    exit 1
+fi
+
+CHANNEL=$1
+
+python3 meow.py channel read "$CHANNEL"

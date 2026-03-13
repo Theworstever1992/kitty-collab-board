@@ -1,59 +1,122 @@
-# 🐱 STANDING ORDERS — Kitty Collab Board
+# STANDING ORDERS — For All AI Agents
 
-These are the standing orders for all agents on the Kitty Collab Board (Clowder).
-All agents MUST read and follow these before beginning any task.
-
----
-
-## 🪖 Mission
-
-You are part of a multi-agent AI collaboration system called the **Kitty Collab Board** (codename: **Clowder**).
-Your job is to collaborate with other agents to complete tasks assigned by the human operator.
+**Read this. Follow this. Coordinate through the board.**
 
 ---
 
-## 📋 Core Rules
+## The Board
 
-1. **Register on startup.** When you wake up, post your status to the shared board.
-2. **Check the board before acting.** Always read current tasks and notes before doing anything.
-3. **Write clearly.** Other agents (and humans) will read your output. Be concise and structured.
-4. **Don't duplicate work.** If another agent has claimed a task, don't repeat it. Coordinate.
-5. **Log everything.** All significant actions must be logged to `logs/`.
-6. **Flag blockers immediately.** If you're stuck, post a BLOCKED status so others can help.
-7. **Complete, don't abandon.** If you start a task, finish it or hand it off explicitly.
+**Location:** `board/` directory
 
----
-
-## 📡 Communication Protocol
-
-- **Board file:** `board/board.json` — shared task/status board (JSON)
-- **Agent announce:** On startup, write your entry to `board/agents.json`
-- **Log format:** `logs/<agent_name>_<timestamp>.log`
-
----
-
-## 🐾 Agent Roster
-
-| Agent | Model | Role | Status |
-|-------|-------|------|--------|
-| claude | Claude (Anthropic) | Lead reasoning, planning | ✅ live |
-| qwen | Qwen (Alibaba) | Code generation, analysis | ✅ live |
-| gemini | Gemini (Google) | Research, cross-checking | 🔲 planned |
-| llama | Llama via Ollama (local) | Summarization, local tasks | 🔲 planned |
-| *(any)* | any OpenAI-compatible endpoint | configurable via `agents.yaml` | 🔲 planned |
-
-See `TODO.md` for the roadmap to make any model drop-in compatible.
+**Structure:**
+```
+board/
+├── channels/
+│   ├── assembly/     # Announcements
+│   ├── manager/      # Manager coordination
+│   ├── sprints/      # Sprint assignments
+│   ├── ideas/        # Agent suggestions
+│   ├── general/      # General chat
+│   └── tasks/        # Task assignments
+├── agents.json       # Who's online
+└── .channels.json    # Channel list
+```
 
 ---
 
-## ⚡ Wake-Up Sequence
+## Your Orders
 
-1. Read `STANDING_ORDERS.md` (this file)
-2. Register in `board/agents.json`
-3. Check `board/board.json` for pending tasks
-4. Begin work or await instructions
-5. Report status to Mission Control
+### 1. Read the Board Before Working
+
+```bash
+python3 meow.py channel read assembly
+python3 meow.py channel read general
+python3 meow.py channel read tasks
+```
+
+### 2. Post Updates When You Complete Work
+
+```bash
+python3 meow.py channel post general msg "✅ Completed: API design"
+```
+
+### 3. Check for @Mentions
+
+```bash
+python3 meow.py channel read general | grep "@you"
+```
+
+### 4. Use War-Room for Planning
+
+```bash
+python3 meow.py channel read sprints
+python3 meow.py channel post sprints msg "I can handle backend"
+```
+
+### 5. Submit Ideas
+
+```bash
+python3 meow.py channel post ideas msg "**Idea:** Add caching
+
+**Problem:** Slow queries
+**Solution:** Redis cache
+**Effort:** medium
+**Impact:** high"
+```
+
+### 6. Hand Off Tasks
+
+```bash
+python3 meow.py channel post tasks msg "@claude Can you review this?"
+```
 
 ---
 
-*Last updated: 2026-03-06*
+## Commands
+
+### Read Messages
+```bash
+python3 meow.py channel read <channel>
+```
+
+### Post Messages
+```bash
+python3 meow.py channel post <channel> msg "Your message"
+```
+
+### List Channels
+```bash
+python3 meow.py channel list
+```
+
+---
+
+## Message Format (If Writing Files Directly)
+
+```json
+{
+  "id": "abc123",
+  "sender": "your-name",
+  "channel": "general",
+  "content": "Your message here",
+  "timestamp": "2026-03-08T09:00:00",
+  "type": "chat"
+}
+```
+
+Save to: `board/channels/general/TIMESTAMP-sender-ID.json`
+
+---
+
+## Rules
+
+1. **Read before posting** — Check what others are doing
+2. **Be concise** — Others read everything
+3. **Be clear** — State what you did, what's next
+4. **Tag others** — Use `@name` for direct communication
+5. **Post early, post often** — Don't disappear
+6. **No duplicate work** — Check before starting
+
+---
+
+*Welcome to the team. 🐱*

@@ -1,39 +1,26 @@
-anthropic>=0.20.0
-openai>=1.0.0
-rich>=13.0.0
-python-dotenv>=1.0.0
+# Kitty Collab Board — Requirements
 
-# Phase 1: Provider abstraction
-google-genai>=1.0.0
-
-# Phase 2: Config-driven agent teams
-pyyaml>=6.0
-
-# Phase 5: Reliability
-filelock>=3.12.0
-
-# Phase 6: Testing (dev dependency)
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-
-# Phase 7: Web GUI
+# ── v1 Web Chat Server ────────────────────────────────────────────────────────
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
-websockets>=12.0
-pydantic>=2.0.0
+watchdog>=3.0.0
+pyyaml>=6.0
 
-# Development dependencies
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
+# ── v2 API — Database ─────────────────────────────────────────────────────────
+sqlalchemy>=2.0.23
+asyncpg>=0.29.0
+pgvector>=0.2.4
+alembic>=1.13.0
 
-# Web backend (Sprint 3)
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-websockets>=12.0
-pydantic>=2.0.0
+# ── v2 API — Config & validation ──────────────────────────────────────────────
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
 
-# Phase 8: Health monitoring + webhook alerts (optional)
-requests>=2.31.0
+# ── v2 API — RAG / Embeddings (Phase 2) ──────────────────────────────────────
+sentence-transformers>=2.2.2
 
-# Performance profiling (Sprint 6)
-psutil>=5.9.0
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+httpx>=0.25.0

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Tuxedo Cat Avatar -->
+  <circle cx="50" cy="50" r="45" fill="#1a1a2e"/>
+  <!-- Ears -->
+  <polygon points="25,30 15,5 40,20" fill="#1a1a2e"/>
+  <polygon points="75,30 85,5 60,20" fill="#1a1a2e"/>
+  <!-- Face -->
+  <ellipse cx="50" cy="55" rx="35" ry="30" fill="#16213e"/>
+  <!-- White markings -->
+  <ellipse cx="50" cy="70" rx="20" ry="15" fill="#FFFFFF"/>
+  <polygon points="50,55 40,70 60,70" fill="#FFFFFF"/>
+  <!-- Eyes -->
+  <ellipse cx="38" cy="50" rx="6" ry="8" fill="#4ade80"/>
+  <ellipse cx="62" cy="50" rx="6" ry="8" fill="#4ade80"/>
+  <circle cx="40" cy="48" r="2" fill="#FFFFFF"/>
+  <circle cx="64" cy="48" r="2" fill="#FFFFFF"/>
+  <!-- Nose -->
+  <polygon points="50,60 45,65 55,65" fill="#FF6B6B"/>
+  <!-- Mouth -->
+  <path d="M 50,65 Q 40,72 35,70" stroke="#FFFFFF" stroke-width="2" fill="none"/>
+  <path d="M 50,65 Q 60,72 65,70" stroke="#FFFFFF" stroke-width="2" fill="none"/>
+  <!-- Whiskers -->
+  <line x1="30" y1="62" x2="10" y2="57" stroke="#FFFFFF" stroke-width="2"/>
+  <line x1="30" y1="65" x2="10" y2="65" stroke="#FFFFFF" stroke-width="2"/>
+  <line x1="30" y1="68" x2="10" y2="73" stroke="#FFFFFF" stroke-width="2"/>
+  <line x1="70" y1="62" x2="90" y2="57" stroke="#FFFFFF" stroke-width="2"/>
+  <line x1="70" y1="65" x2="90" y2="65" stroke="#FFFFFF" stroke-width="2"/>
+  <line x1="70" y1="68" x2="90" y2="73" stroke="#FFFFFF" stroke-width="2"/>
+</svg>

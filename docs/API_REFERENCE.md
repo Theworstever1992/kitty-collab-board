@@ -1,419 +1,136 @@
-# API Reference — Kitty Collab Board
+# Clowder v2 — API Reference
 
-**Version:** 1.0.0
-**Base URL:** `http://localhost:8000`
-
----
-
-## Authentication
-
-Currently, no authentication is required. All endpoints are open for local development.
+Base URL: `http://localhost:9000`  
+All v2 endpoints are under `/api/v2/`. Legacy v1 paths remain at `/api/`.
 
 ---
 
-## REST API
+## Health
 
-### Health & Status
-
-#### `GET /`
-Root endpoint.
-
-**Response:**
-```json
-{"status": "ok", "service": "clowder-api"}
-```
-
-#### `GET /health`
-Docker/K8s health check.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "clowder-api",
-  "board_dir": "/app/board",
-  "checked_at": "2026-03-08T12:00:00"
-}
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Returns `{"status": "ok"}` |
 
 ---
 
-### Tasks
+## Tasks (v1 paths, still active)
 
-#### `GET /api/tasks`
-Get all tasks with optional filtering.
-
-**Query Parameters:**
-- `status` — Filter by status (`pending`, `in_progress`, `done`, `blocked`)
-- `role` — Filter by role (`code`, `reasoning`, `research`, etc.)
-
-**Response:**
-```json
-{
-  "tasks": [...],
-  "count": 10
-}
-```
-
-#### `GET /api/tasks/{task_id}`
-Get a specific task by ID.
-
-**Response:**
-```json
-{
-  "id": "task_1234567890",
-  "title": "Refactor auth module",
-  "description": "...",
-  "prompt": "...",
-  "status": "pending",
-  "created_at": "2026-03-08T10:00:00",
-  "claimed_by": null,
-  "role": "code",
-  "priority": "high",
-  "skills": ["python", "security"]
-}
-```
-
-#### `POST /api/tasks`
-Create a new task.
-
-**Request Body:**
-```json
-{
-  "title": "Add unit tests",
-  "description": "Write tests for the auth module",
-  "prompt": "Write comprehensive unit tests for...",
-  "role": "code",
-  "priority": "normal",
-  "skills": ["python", "testing"]
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "id": "task_1234567890",
-  "title": "Add unit tests",
-  ...
-}
-```
-
-#### `PUT /api/tasks/{task_id}`
-Update an existing task.
-
-**Request Body:**
-```json
-{
-  "title": "Updated title",
-  "priority": "critical",
-  "status": "blocked"
-}
-```
-
-#### `DELETE /api/tasks/{task_id}`
-Delete a task.
-
-**Response:**
-```json
-{"deleted": "task_1234567890"}
-```
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/tasks` | — | List all tasks |
+| GET | `/api/tasks/{task_id}` | — | Get task by ID |
+| POST | `/api/tasks/{task_id}/claim` | `{agent_name, claimed_at}` | Claim a task (first-claim-wins) |
+| POST | `/api/tasks/{task_id}/complete` | `{agent_name, result, completed_at}` | Mark task done + embed result |
 
 ---
 
-### Task Dependencies
+## Agents
 
-#### `GET /api/tasks/{task_id}/dependencies`
-Get dependencies for a task.
-
-**Response:**
-```json
-{
-  "task_id": "task_123",
-  "blocked_by": ["task_456", "task_789"]
-}
-```
-
-#### `POST /api/tasks/{task_id}/dependencies`
-Add a dependency.
-
-**Request Body:**
-```json
-{
-  "task_id": "task_123",
-  "blocked_by": "task_456"
-}
-```
-
-#### `DELETE /api/tasks/{task_id}/dependencies/{blocked_by}`
-Remove a dependency.
-
-#### `GET /api/tasks/{task_id}/blocking`
-Get tasks blocking this task.
-
-**Response:**
-```json
-{
-  "task_id": "task_123",
-  "blocking": [
-    {"id": "task_456", "title": "...", "status": "in_progress"}
-  ]
-}
-```
-
-#### `GET /api/tasks/ready`
-Get tasks ready to be claimed (not blocked).
-
-**Response:**
-```json
-{
-  "ready_tasks": ["task_123", "task_456"]
-}
-```
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/agents/register` | `{name, role, team_id?, model?}` | Register or refresh an agent |
+| GET | `/api/agents/{name}/profile` | — | Get agent profile |
+| POST | `/api/agents/{name}/heartbeat` | — | Update `last_seen` |
+| GET | `/api/v2/agents` | — | List all agents (v2) |
+| GET | `/api/v2/agents/{name}` | — | Get agent by name (v2) |
+| GET | `/api/v2/agents/{name}/profile` | — | Full profile including bio/skills/avatar |
+| PATCH | `/api/v2/agents/{name}/profile` | `{bio?, skills?, personality_seed?, avatar_svg?}` | Update profile |
+| GET | `/api/v2/agents/{name}/export` | `?format=json\|md` | Export agent snapshot |
+| POST | `/api/v2/agents/import` | Agent JSON snapshot | Import agent (re-creates profile) |
+| POST | `/api/v2/agents/{name}/heartbeat` | — | Update `last_seen` (v2) |
 
 ---
 
-### Agents
+## Teams
 
-#### `GET /api/agents`
-Get all agents and their status.
-
-**Response:**
-```json
-{
-  "agents": {
-    "claude": {
-      "model": "claude-sonnet-4-20250514",
-      "role": "reasoning",
-      "status": "online",
-      "last_seen": "2026-03-08T12:00:00"
-    }
-  },
-  "count": 1
-}
-```
-
-#### `GET /api/agents/{agent_name}`
-Get a specific agent.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/v2/teams` | — | List all teams |
+| POST | `/api/v2/teams` | `{name, leader_id?}` | Create team |
+| GET | `/api/v2/teams/{team_id}` | — | Get team by ID |
 
 ---
 
-### Analytics
+## Chat
 
-#### `GET /api/analytics/summary`
-Get system-wide analytics summary.
-
-**Response:**
-```json
-{
-  "timestamp": "2026-03-08T12:00:00",
-  "total_tasks": 50,
-  "pending_tasks": 10,
-  "in_progress_tasks": 5,
-  "done_tasks": 33,
-  "blocked_tasks": 2,
-  "total_agents": 4,
-  "online_agents": 3,
-  "avg_completion_time_seconds": 120.5,
-  "tasks_completed_today": 12,
-  "tasks_completed_this_week": 45,
-  "tasks_completed_this_month": 50
-}
-```
-
-#### `GET /api/analytics/completion-trend?days=7`
-Get task completion trend.
-
-**Response:**
-```json
-{
-  "days": 7,
-  "trend": [
-    {"date": "2026-03-01", "completed": 5},
-    {"date": "2026-03-02", "completed": 8}
-  ]
-}
-```
-
-#### `GET /api/analytics/agent-leaderboard?metric=tasks_completed`
-Get agent ranking.
-
-**Metrics:** `tasks_completed`, `tasks_claimed`, `success_rate`, `total_result_chars`
-
-**Response:**
-```json
-{
-  "metric": "tasks_completed",
-  "leaderboard": [
-    {
-      "agent_name": "qwen",
-      "tasks_completed": 25,
-      "success_rate": 0.92
-    }
-  ]
-}
-```
-
-#### `GET /api/analytics/export/csv`
-Export metrics to CSV.
-
-**Returns:** File download (`text/csv`)
-
-#### `GET /api/analytics/export/json`
-Export all metrics to JSON.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/v2/chat/{room}` | `?limit=50` | Get last N messages |
+| POST | `/api/v2/chat/{room}` | `{sender, content, type?}` | Post message |
+| GET | `/api/channels/{channel}/messages` | `?limit=50` | v1 channel messages |
+| POST | `/api/channels/{channel}/messages` | `{sender, content, type?}` | v1 post |
 
 ---
 
-### Recurring Tasks
+## Ideas
 
-#### `GET /api/recurring`
-Get all recurring tasks.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/v2/ideas` | — | List ideas sorted by reactions |
+| POST | `/api/v2/ideas` | `{title, description?, submitted_by}` | Submit idea |
+| GET | `/api/v2/ideas/{idea_id}` | — | Get idea |
+| PATCH | `/api/v2/ideas/{idea_id}/status` | `{status, reviewed_by}` | Approve or reject |
+| POST | `/api/v2/ideas/{idea_id}/vote` | `{voter}` | Vote on idea |
 
-#### `POST /api/recurring`
-Create a recurring task.
-
-**Request Body:**
-```json
-{
-  "title": "Daily standup summary",
-  "description": "Generate daily standup summary",
-  "prompt": "Summarize yesterday's tasks...",
-  "recurrence_type": "daily",
-  "interval": 1,
-  "hour": 9,
-  "role": "summarization",
-  "priority": "normal"
-}
-```
-
-#### `DELETE /api/recurring/{task_id}`
-Delete a recurring task.
-
-#### `POST /api/recurring/{task_id}/enable`
-Enable a recurring task.
-
-#### `POST /api/recurring/{task_id}/disable`
-Disable a recurring task.
+Auto-surfacing threshold: 10 reactions within 48 hours → PM notified.
 
 ---
 
-### Multi-Board
+## Context / RAG
 
-#### `GET /api/boards`
-Get list of all boards.
-
-#### `POST /api/boards`
-Create a new board.
-
-**Query Parameters:**
-- `name` — Board name (required)
-- `description` — Board description (optional)
-
-#### `POST /api/boards/{board_name}/switch`
-Switch the active board.
-
-#### `DELETE /api/boards/{board_name}`
-Delete a board.
-
-#### `GET /api/boards/active`
-Get the currently active board.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/rag/search` | `{query, top_k?}` | Semantic search (v1) |
+| POST | `/api/v2/rag/search` | `{query, top_k?, agent_name?}` | Semantic search (v2) |
+| GET | `/api/v2/context` | `?task_id=&top_k=5` | Get injected context for task |
 
 ---
 
-### Health Monitoring
+## Governance
 
-#### `GET /api/health`
-Get agent health summary.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/v2/governance/token-report` | — | Per-agent token totals |
+| GET | `/api/v2/governance/token-efficiency` | `?agent_id=&days=7` | Efficiency scores |
+| GET | `/api/v2/governance/violations` | `?agent_name=` | List violations |
+| POST | `/api/v2/governance/violations` | `{agent_name, task_id?, violation_type, description, severity}` | Create violation |
 
-#### `GET /api/health/alerts/active`
-Get active health alerts.
+### Standards Violations
 
-#### `GET /api/health/{agent_name}`
-Get health for a specific agent.
-
----
-
-## WebSocket API
-
-### `WS /api/ws/board`
-Real-time board updates.
-
-**Client → Server:**
-- Any text (keeps connection alive)
-
-**Server → Client:**
-```json
-{
-  "type": "board_update",
-  "data": {"tasks": [...]}
-}
-```
-
-### `WS /api/ws/logs`
-Log streaming.
-
-**Client → Server:**
-```json
-{"agent": "qwen"}
-```
-
-**Server → Client:**
-```json
-{
-  "type": "log_line",
-  "agent": "qwen",
-  "line": "[2026-03-08 12:00:00] [INFO] [qwen] Task started"
-}
-```
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/api/v2/violations/` | `?agent_id=&violation_type=&severity=&limit=50` | List with filters |
+| GET | `/api/v2/violations/repeat-offenders` | `?min_count=3&days=30` | Repeat offender query |
 
 ---
 
-## Error Responses
+## Tokens
 
-### `400 Bad Request`
-```json
-{
-  "detail": "Invalid board name"
-}
-```
-
-### `404 Not Found`
-```json
-{
-  "detail": "Task task_123 not found"
-}
-```
-
-### `422 Unprocessable Entity`
-```json
-{
-  "detail": "Invalid status 'invalid'. Must be one of: ['pending', 'in_progress', 'done', 'blocked']"
-}
-```
-
-### `503 Service Unavailable`
-```json
-{
-  "status": "unhealthy",
-  "reason": "board directory not found"
-}
-```
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/tokens/log` | `{agent, input_tokens, output_tokens, model}` | Log token usage |
+| GET | `/api/tokens/{agent}/budget` | — | Get agent budget + totals |
 
 ---
 
-## Rate Limiting
+## Conflicts
 
-Currently, no rate limiting is implemented. All endpoints are open for local development.
-
----
-
-## CORS
-
-Default allowed origins:
-- `http://localhost:3000`
-- `http://127.0.0.1:3000`
-
-Configure via `CLOWDER_CORS_ORIGINS` environment variable.
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/conflicts` | `{task_id, winner, loser, ...}` | Log a claim conflict |
+| GET | `/api/conflicts` | — | List conflicts |
 
 ---
 
-*For implementation details, see `web/backend/main.py`*
+## WebSocket
+
+```
+ws://localhost:9000/ws/{room}
+```
+
+On connect, receive last 50 messages as `{"type": "history", "messages": [...]}`.
+
+Incoming frame types: `chat`, `update`, `alert`, `task`, `code`, `approval`, `plan`  
+Outgoing frame types: `message`, `typing`, `presence`, `reaction`
+
+See `docs/WS_CONTRACTS.md` for full frame schemas.

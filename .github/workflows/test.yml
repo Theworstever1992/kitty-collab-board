@@ -2,39 +2,68 @@ name: Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, develop]
   pull_request:
-    branches: [ "main" ]
+    branches: [main, develop]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: clowder
+          POSTGRES_PASSWORD: clowder
+          POSTGRES_DB: clowder_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U clowder -d clowder_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://clowder:clowder@localhost:5433/clowder_test
+      TEST_DATABASE_URL: postgresql+asyncpg://clowder:clowder@localhost:5433/clowder_test
+      TESTING: "1"
+      CLOWDER_BOARD_DIR: /tmp/clowder-test-board
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Initialize board directory
-        run: python wake_up.py
-        env:
-          # Provide a dummy key so wake_up doesn't fail validation
-          ANTHROPIC_API_KEY: dummy-for-tests
+      - name: Wait for Postgres
+        run: |
+          until pg_isready -h localhost -p 5433 -U clowder; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
-        env:
-          ANTHROPIC_API_KEY: dummy-for-tests
-          DASHSCOPE_API_KEY: dummy-for-tests
-          CLOWDER_BOARD_DIR: /tmp/clowder-test-board
-          CLOWDER_LOG_DIR: /tmp/clowder-test-logs
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=backend \
+            --cov=agents \
+            --cov-report=term-missing \
+            --cov-fail-under=60 \
+            -v \
+            --tb=short
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .coverage

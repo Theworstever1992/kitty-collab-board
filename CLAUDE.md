@@ -2,178 +2,222 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+---
 
-**Kitty Collab Board** (codename: **Clowder**) is a multi-agent AI collaboration system. Multiple AI agents (Claude, Qwen, etc.) run as independent processes, poll a shared JSON task board, claim and complete tasks, and report results. A human operator manages the board via `meow.py` / `mission_control.py`.
+## Project Overview
 
-## Setup
+**Kitty Collab Board** (codename: **Clowder**) is a file-based multi-agent coordination system. Human operators and AI agents (Claude, Qwen, Copilot, etc.) communicate by reading and writing JSON files in the `board/` directory. **No API keys are required.** The board is the single source of truth.
 
+Active development targets the approved v2 redesign (`2026-03-08-clowder-v2-design.md`), which adds PostgreSQL + pgvector, RAG pipelines, agent profiles, and a social layer.
+
+---
+
+## Running the System
+
+### First-time setup
 ```bash
 pip install -r requirements.txt
-cp .env.example .env  # fill in API keys
-python wake_up.py     # create board/ and logs/ dirs, print PowerShell aliases
+python3 wake_up_all.py        # creates board/ structure and default channels
 ```
 
-Required env vars: `ANTHROPIC_API_KEY`, `DASHSCOPE_API_KEY`
-
-Optional path overrides (used by Docker): `CLOWDER_BOARD_DIR`, `CLOWDER_LOG_DIR`
-
-## Common Commands
-
-**Board & Task Management:**
+### Start the Web Chat Server (v1 — file-based, primary for offline use)
 ```bash
-python meow.py                  # show board status
-python meow.py mc               # open Mission Control TUI (curses on Linux, simple on Windows)
-python meow.py wake             # re-initialize board + print aliases
-python meow.py task "do thing"  # quick-add a task
-python meow.py add              # add a task interactively
-python meow.py spawn            # spawn agents via PowerShell (Windows only)
+python3 -m uvicorn web_chat:app --host 0.0.0.0 --port 8080 --reload
+# Access: http://localhost:8080
 ```
 
-**Running Agents:**
+### Start the v2 API Server (PostgreSQL backend)
 ```bash
-python agents/claude_agent.py   # run Claude agent
-python agents/qwen_agent.py     # run Qwen agent
+uvicorn backend.main:app --host 0.0.0.0 --port 9000 --reload
+# Requires PostgreSQL — see backend/config.py for DATABASE_URL
 ```
 
-**Web API & Frontend:**
+### Docker
 ```bash
-# Start FastAPI backend (port 8000)
-uvicorn web.backend.main:app --reload
-
-# Start React frontend (port 3000) — requires Node.js
-cd web/frontend && npm install && npm run dev
+docker-compose --profile init up init   # first time only
+docker-compose up -d
+# Default: --profile init (init board); --profile cli (interactive shell)
 ```
 
-**Testing:**
+### Tests
 ```bash
-pytest                          # run all tests
-pytest tests/test_board.py -v   # run board tests
-pytest tests/unit/test_retry.py -v  # run specific test file
+pytest tests/                                         # all tests
+pytest tests/test_file_backend.py                     # single file
+pytest tests/test_agent_client.py::test_offline_only_mode  # single test
 ```
 
-**Docker (recommended for deployment):**
+There is no linter config (no flake8, pylint, or pyproject.toml).
+
+---
+
+## CLI — meow.py
+
+`meow.py` is the primary operator CLI. Top-level subcommands: `channel`, `war-room`, `tokens`, `template`, `server`. Do not add new top-level commands without updating help text.
+
 ```bash
-docker-compose up -d            # start all services (API + Claude + Qwen agents)
-python mission_control.py       # monitor from host
-docker-compose down             # stop all services
+python3 meow.py                            # board status
+python3 meow.py channel list               # list channels
+python3 meow.py channel create <name>
+python3 meow.py channel post <ch> msg <m>
+python3 meow.py channel read <channel>     # last 20 messages
+python3 meow.py channel stats <channel>
+
+python3 meow.py war-room kick <prompt>     # start a mission
+python3 meow.py war-room pending
+python3 meow.py war-room approve <plan_id>
+python3 meow.py war-room dispatch <plan_id>
+
+python3 meow.py tokens report
+python3 meow.py tokens set <agent> <$/day>
+python3 meow.py tokens check <agent>
+
+python3 meow.py template list
+python3 meow.py template save <name>
+python3 meow.py template use <name>
 ```
+
+---
 
 ## Architecture
 
-### Shared State (`board/`)
-- `board/board.json` — task list; agents poll, claim, and complete tasks by mutating this file
-- `board/agents.json` — agent registry; agents write their entry on startup and update `last_seen` on each heartbeat
-- `logs/` — per-agent log files created on first write
+### Two-Mode Data Layer
 
-**Task statuses:** `pending` → `in_progress` → `done` | `blocked`
+**File-based (v1 / offline):**
+All state in `board/` as JSON files. Each message is a separate file:
+```
+board/channels/<channel>/<ISO-timestamp-with-dashes>-<sender>-<8char-uuid>.json
+```
+Timestamps use dashes not colons (filesystem-safe). Files sort correctly by name without parsing. `board/board.json` is the task queue; `board/agents.json` is the agent registry.
 
-**Task fields:** `id` (e.g. `task_<unix_timestamp>`), `title`, `description`, `prompt`, `status`, `created_at`, `claimed_by`, `claimed_at`, `result`, `handoff` (optional), `role`, `priority`, `skills`
+**PostgreSQL (v2 / online):**
+`backend/` directory — SQLAlchemy async (asyncpg driver) + FastAPI. Tables: `tasks`, `chat_messages`, `agents`, `token_usage`. Schema created automatically via `create_tables()` in FastAPI `lifespan`. RAG via pgvector is a Phase 2 stub in `POST /api/rag/search`.
 
-### Agent Pattern
-All agents inherit from `agents/base_agent.py:BaseAgent`. The base class handles:
-- Registration/heartbeat (read-modify-write `agents.json`)
-- Board polling (every 5 seconds by default)
-- Task claiming/completion with optimistic locking (no file locking; race conditions possible under heavy load)
-- Logging to both stdout and `logs/<agent_name>.log`
-- Handoff protocol (task delegation between agents)
-- Health monitoring (last_seen heartbeat tracking)
+### Concurrency Model
+All writes go through `agents/atomic.py` using `os.replace()` (POSIX `rename(2)`). This is atomic on the same filesystem — readers always see complete files. **No locks, no mutexes.**
 
-Subclasses override only `handle_task(task: dict) -> str` to implement custom logic.
+### Two Web Servers
+- **`web_chat.py`** — FastAPI + WebSocket. Port 8080. v1 REST + real-time. Serves `ui.html`. Use for new development against the file-based board.
+- **`backend/main.py`** — FastAPI. Port 9000. v2 PostgreSQL API. Replaces `web_chat.py` when the v2 stack is running.
+- **`server.py`** — Raw `websockets` + Watchdog file watcher. Alternative. Pushes raw file-change events.
 
-**Key BaseAgent methods:**
-- `register()` / `deregister()` — manage agent registration in `agents.json`
-- `claim_task(id)` — attempt to claim a pending task
-- `complete_task(id, result)` — mark task done with result string
-- `handoff_task(target, notes)` — delegate task to another agent
-- `accept_handoff()` / `decline_handoff()` — respond to handoffs
-- `log(msg, level)` — write to log file and stdout
-- `run()` — main loop: register → heartbeat → poll → claim → handle → complete
+### AgentClient — Transparent Backend Routing
 
-### Agent Implementations
-- `claude_agent.py` — uses `anthropic` SDK; invokes Claude model (configurable, default `claude-opus-4-6`)
-- `qwen_agent.py` — uses OpenAI-compatible endpoint via DashScope; model `qwen-plus`
-- `generic_agent.py` — template for adding new provider-based agents
+`agents/agent_client.py` is the single entry point for agents to interact with the board. It composes `FileBackend` (offline) and `PostgresBackend` (online) behind an identical interface defined in `agents/backend_protocol.py` (`BoardBackend` Protocol).
 
-**To add a new agent:**
-1. Subclass `BaseAgent` and implement `handle_task()`
-2. Choose a provider from `agents/providers/` (Anthropic, OpenAI-compatible, Ollama, Gemini)
-3. Add a service entry to `docker-compose.yml`
-4. Update `STANDING_ORDERS.md` agent roster
+```python
+client = AgentClient("my-agent", role="coder")               # offline
+client = AgentClient("my-agent", api_base="http://localhost:9000")  # auto-detects v2
 
-### Operator Tools
-- `meow.py` — CLI dispatcher for board operations (status, add tasks, spawn agents)
-- `mission_control.py` — interactive TUI for board management (curses on Unix, simple loop on Windows)
-  - Keys: `q`=quit, `r`=refresh, `a`=add task, `h`=handoff, `A`=archive done tasks, Up/Down=navigate, Enter=view result
-- `wake_up.py` — initializes `board/` and `logs/` directories, prints PowerShell aliases
-- `config.py` / `agents.yaml` — centralized configuration for agents and thresholds
-
-### Web API & Frontend
-
-**FastAPI Backend** (`web/backend/main.py`, port 8000):
-- REST endpoints for board operations (`GET /api/tasks`, `POST /api/tasks`, etc.)
-- WebSocket for real-time board updates
-- Health monitoring (`GET /api/health`, `/api/health/{agent}`)
-- Log streaming for agents
-- JSON state management without direct file access
-
-**React Frontend** (`web/frontend/`, port 3000):
-- Task board visualization and management
-- Agent health dashboard with real-time status
-- Log viewer for each agent
-- Built with React 18, TypeScript, Vite, Bootstrap 5
-
-### Health Monitoring & Alerts
-`agents/health_monitor.py` provides:
-- Agent health tracking via heartbeat intervals (thresholds: 60s warning, 300s offline)
-- Health status endpoints for web API
-- Alert channels (console, log file, webhook)
-- Discord/Slack webhook support for agent alerts
-
-### Additional Subsystems
-- `agents/retry.py` — exponential backoff retry logic for resilient task handling
-- `agents/audit.py` — board mutation audit logging for debugging
-- `agents/providers/` — abstraction layer for LLM providers (Anthropic, OpenAI-compatible, Ollama, Gemini)
-- `logging_config.py` — centralized logging configuration
-
-### Agent Protocol
-See `STANDING_ORDERS.md`. Agents must:
-- Register on startup and maintain heartbeat
-- Read the board before acting
-- Avoid duplicate claimed tasks
-- Log all significant actions
-- Flag blockers (set status to `blocked`)
-- Hand off rather than abandon tasks (via `handoff_task()`)
-- Communicate only through the board JSON — no direct agent-to-agent calls
-
-## Development
-
-### Board State Inspection
-```bash
-# View task board (JSON)
-cat board/board.json | python -m json.tool
-
-# View agent registry and health
-cat board/agents.json | python -m json.tool
-
-# View agent logs
-tail -f logs/claude_agent.log
-tail -f logs/qwen_agent.log
+client.get_tasks()         # routes transparently
+client.claim_task(task_id)
+client.complete_task(task_id, result)
+client.post_message(channel, content)
+client.read_messages(channel)
+client.heartbeat()
+client.log_tokens(input_tokens, output_tokens)
+client.get_context(query)  # RAG — returns [] offline, never None
+client.sync_pending_completions()  # push local completions after reconnect
 ```
 
-### Debugging Patterns
-1. **Agent not claiming tasks?** Check if `status` field matches expected state, if agent is registered in `agents.json`, if it's polling (check logs for poll messages)
-2. **Task stuck in progress?** Check `claimed_by` and `claimed_at`; may need manual intervention (edit JSON if safe)
-3. **Web API not connecting?** Ensure backend is running on port 8000 and CORS origins are configured correctly
-4. **Frontend not updating?** Check browser console for WebSocket connection errors; verify API endpoint in `web/frontend/src/api/client.ts`
+API probe is cached for 30 seconds (`_PROBE_INTERVAL`). On offline→online transition, `sync_pending_completions()` is called automatically. HTTP 409 from the API = another agent already claimed the task; logged to `board/conflicts.json`.
 
-### Testing
-- Tests live in `tests/` with pytest configuration in `pytest.ini`
-- Use `pytest -v` for verbose output, `-x` to stop on first failure
-- Test coverage includes board operations, retry logic, and provider integration
+### Key Modules (`agents/`)
 
-### Code Organization
-- **Agents:** Implement custom logic by subclassing `BaseAgent`; handlers should be idempotent
-- **Providers:** Add new LLM providers in `agents/providers/base.py` by subclassing `BaseProvider`
-- **Web routes:** Add new FastAPI endpoints in `web/backend/main.py` and consume via `web/frontend/src/api/client.ts`
-- **Config:** Use environment variables (`.env`) for deployment flexibility; runtime config in `config.py` and `agents.yaml`
+| Module | Purpose |
+|--------|---------|
+| `atomic.py` | `atomic_write()` / `atomic_read()` using POSIX `rename()` |
+| `channels.py` | `Channel` class (post, read, archive, mirror, threads); `ChannelManager` singleton |
+| `war_room.py` | `WarRoom` — 5-step mission flow: kick-off → assessment → plan → approval → dispatch |
+| `context_manager.py` | Token tracking per agent/model, USD cost estimates, daily/monthly budgets |
+| `agent_client.py` | Transparent routing: FileBackend ↔ PostgresBackend |
+| `backend_protocol.py` | `BoardBackend` Protocol (structural subtyping — no inheritance) |
+| `file_backend.py` | File-based implementation of `BoardBackend` |
+
+### War Room Flow
+
+```
+kick_off() → POST to #war-room → agents post assessments → create_approval_plan()
+           → POST to #approvals → human runs approve_plan() → dispatch_tasks()
+           → POST tasks to team channels (#team-claude, #team-qwen, etc.)
+```
+
+Plans persist in `board/.approvals.json`.
+
+### Token / Context Tracking
+
+Agents embed `[TOKENS: input=X output=Y]` in messages. `ContextManager.parse_and_log_tokens()` scans for this and logs USD costs to `board/.context_metrics.json`. Rates for 10+ models in `TOKEN_RATES` in `agents/context_manager.py`. v2 API rates live in `_TOKEN_RATES` in `backend/main.py`.
+
+---
+
+## Key Conventions
+
+### Python Style
+- Python 3.11+
+- Type hints on all function signatures
+- Docstrings on public functions and classes
+- All board file writes go through `atomic_write()` — never `open(..., 'w')` directly on board files
+
+### Message Types
+Valid `type` field values: `chat`, `update`, `alert`, `task`, `code`, `approval`, `plan`. The `Channel` class validates this.
+
+### Test Isolation
+Tests use `tmp_path` + `monkeypatch` to override `CLOWDER_BOARD_DIR`. Modules that read the env var at import time must be reloaded:
+
+```python
+def test_something(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLOWDER_BOARD_DIR", str(tmp_path))
+    import importlib, agents.channels
+    importlib.reload(agents.channels)
+```
+
+---
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CLOWDER_BOARD_DIR` | `./board` | Board root path |
+| `CLOWDER_SERVER_HOST` | `0.0.0.0` | server.py WebSocket host |
+| `CLOWDER_SERVER_PORT` | `8765` | server.py WebSocket port |
+| `CLOWDER_DEBUG` | unset | Enable debug logging |
+| `DATABASE_URL` | (see backend/config.py) | asyncpg connection string for v2 |
+
+---
+
+## Agent Protocol (for AI agents reading this repo)
+
+Register on arrival:
+```bash
+curl -X POST "http://localhost:8080/api/agents/register?name=<you>&role=collaborator"
+```
+
+Read and post via `meow.py`:
+```bash
+python3 meow.py channel read assembly   # check announcements
+python3 meow.py channel read tasks      # check for work
+python3 meow.py channel post general msg "Done: <summary>"
+```
+
+Or use `AgentClient` directly in Python (preferred for agents with logic). See `STANDING_ORDERS.md` for the full agent protocol.
+
+---
+
+## v2 Design (Active Direction)
+
+The approved v2 redesign (`2026-03-08-clowder-v2-design.md`) adds:
+- **FastAPI REST API** (`backend/main.py`, port 9000) replacing direct file access
+- **PostgreSQL + pgvector** for context, chat history, and RAG embeddings
+- **RAG pipeline**: auto-inject past task context into prompts (model: `all-MiniLM-L6-v2`; pre-baked into Docker image)
+- **Agent hierarchy**: User → PM Agent → Team Leaders → Worker Agents
+- **Vue 3 + Vite** frontend (dev: port 3000, prod: Nginx serves compiled `dist/`)
+- **Social layer**: Main Hall chat, reactions, threading, ideas auto-surfacing (threshold: 10 reactions / 48h)
+- **Agent profiles**: name, bio, cat SVG avatar (max 50 KB, validated with `xml.etree.ElementTree`, 3 default templates)
+
+Key locked decisions:
+- PM is a persistent Python process polling `board/pm_tasks.json`
+- Team Leaders subclass `BaseAgent` with `is_leader=True`; team agents poll `board/teams/<team_id>/board.json`
+- First-claim-wins conflict resolution by `claimed_at`; conflicts logged to `board/conflicts.json`
+- No authentication in v2 — localhost/LAN only (see Decision 8 in design doc)
+- Embedding model loaded once at API startup via FastAPI `lifespan`
+
+Implementation phases (locked order): Infrastructure → RAG → Social WebSocket → Profiles → Governance → Polish
