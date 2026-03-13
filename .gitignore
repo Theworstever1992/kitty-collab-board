@@ -31,3 +31,12 @@ logs/
 
 # Environment
 .env
+
+# AI agent instruction files (local use only, not for distribution)
+CLAUDE.md
+GEMINI.md
+QWEN.md
+NATURAL_LANGUAGE.md
+STANDING_ORDERS.md
+MULTI_AI_COLLAB.md
+MANAGER_SYSTEM.md
