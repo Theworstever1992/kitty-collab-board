@@ -133,3 +133,25 @@ async def update_profile(name: str, req: UpdateProfileRequest):
         await db.commit()
         await db.refresh(agent)
         return _agent_full(agent)
+
+
+@router.patch("/{name}/avatar")
+async def update_avatar(name: str, req: UpdateProfileRequest):
+    """
+    Update an agent's avatar SVG specifically.
+    Matches the frontend api.updateAvatar call.
+    """
+    if req.avatar_svg is None:
+        raise HTTPException(status_code=400, detail="avatar_svg is required")
+    
+    validate_avatar_svg(req.avatar_svg)
+
+    async with SessionLocal() as db:
+        agent = await db.get(Agent, name)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        agent.avatar_svg = req.avatar_svg
+        await db.commit()
+        await db.refresh(agent)
+        return _agent_full(agent)

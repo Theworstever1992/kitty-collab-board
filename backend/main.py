@@ -495,7 +495,7 @@ async def v2_heartbeat(name: str):
         if agent:
             agent.last_seen = datetime.datetime.now()
             await db.commit()
-    return {"ok": True, "agent": name, "ts": datetime.datetime.utcnow().isoformat()}
+    return {"ok": True, "agent": name, "ts": datetime.datetime.now(datetime.UTC).isoformat()}
 
 
 # ── v2 RAG stub ───────────────────────────────────────────────────────────────

@@ -56,7 +56,7 @@ class PmAgent:
         for task in data.get("tasks", []):
             if task.get("id") == task_id:
                 task["status"] = "processing"
-                task["processing_started_at"] = datetime.datetime.utcnow().isoformat()
+                task["processing_started_at"] = datetime.datetime.now(datetime.UTC).isoformat()
                 break
         atomic_write(self.pm_tasks_file, data)
 
@@ -127,7 +127,7 @@ class PmAgent:
             if t.get("id") == task_id:
                 t["status"] = "proposed"
                 t["plan_id"] = plan_id
-                t["proposed_at"] = datetime.datetime.utcnow().isoformat()
+                t["proposed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
                 break
         atomic_write(self.pm_tasks_file, data)
 

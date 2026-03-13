@@ -9,7 +9,7 @@ pgvector column added to ChatMessage for RAG (Phase 2, nullable until then).
 import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -43,6 +43,7 @@ class Task(Base):
     )
     __table_args__ = (
         # Index on status + team_id for fast task filtering
+        Index("ix_tasks_status_team", "status", "team_id"),
     )
 
 
@@ -254,5 +255,5 @@ class LeaderMeeting(Base):
     participants: Mapped[Optional[list]] = mapped_column(JSON)
     decisions: Mapped[Optional[list]] = mapped_column(JSON)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), server_default=func.now(), index=True
     )

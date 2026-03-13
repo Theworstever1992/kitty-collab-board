@@ -52,7 +52,7 @@ async def export_agent(name: str, format: str = "json"):
         "personality_seed": agent.personality_seed or "",
         "rag_config": {},
         "system_prompt": "",
-        "exported_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "exported_at": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
     }
 
     if format == "md":
@@ -110,7 +110,7 @@ async def import_agent(req: ImportAgentRequest):
                 bio=req.bio,
                 skills=req.skills,
                 personality_seed=req.personality_seed,
-                hired_at=datetime.datetime.utcnow(),
+                hired_at=datetime.datetime.now(datetime.UTC),
             ))
 
         await db.commit()

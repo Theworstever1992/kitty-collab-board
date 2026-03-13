@@ -38,6 +38,12 @@ cd frontend && npm run build   # outputs to frontend/dist/
 # Run all tests (no PostgreSQL needed for file-backend tests)
 pytest tests/
 
+# Run a single test file
+pytest tests/test_file_backend.py
+
+# Run a single test function
+pytest tests/test_file_backend.py::test_claim_task_conflict
+
 # Docker full stack (v2)
 docker-compose --profile init up init   # first time only
 docker-compose --profile v2 up -d       # postgres + api + nginx
@@ -486,6 +492,7 @@ Posts violations to `POST /api/v2/governance/violations`.
 ## Test Setup
 
 **Framework:** pytest + pytest-asyncio  
+**`asyncio_mode = auto`** — async tests run automatically; do **not** add `@pytest.mark.asyncio` manually.  
 **DB:** postgres-test on port 5433, database `clowder_test`  
 **conftest.py fixtures:**
 - `test_engine` — function-scoped, creates all tables, drops data after test

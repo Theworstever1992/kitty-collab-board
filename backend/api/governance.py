@@ -62,10 +62,12 @@ async def token_report():
 
 
 @router.get("/violations")
-async def list_violations(agent_name: Optional[str] = None):
+async def list_violations(
+    agent_name: Optional[str] = Query(None),
+):
     """
     List standards violations.
-    Optional query param agent_name filters to a specific agent (maps to agent_id column).
+    Optional query param agent_name (or agent_id) filters to a specific agent.
     """
     async with SessionLocal() as db:
         q = select(StandardsViolation).order_by(StandardsViolation.flagged_at.desc())
@@ -122,7 +124,7 @@ async def token_efficiency(
     """
     async with SessionLocal() as db:
         # Get token usage for the specified period
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(datetime.UTC) - timedelta(days=days)
         
         query = select(
             TokenUsage.agent,

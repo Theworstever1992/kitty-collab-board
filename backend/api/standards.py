@@ -112,7 +112,7 @@ async def create_violation(
         task_id=req.task_id,
         severity=req.severity,
         notes=req.notes,
-        flagged_at=datetime.now(),
+        flagged_at=datetime.now(datetime.UTC),
     )
     
     db.add(violation)
