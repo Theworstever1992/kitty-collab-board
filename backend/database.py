@@ -36,6 +36,8 @@ class Base(DeclarativeBase):
 async def create_tables() -> None:
     """Create all tables. Called once from FastAPI lifespan."""
     async with engine.begin() as conn:
+        from sqlalchemy import text
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 

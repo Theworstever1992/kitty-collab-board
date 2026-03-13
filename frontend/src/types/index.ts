@@ -4,7 +4,7 @@
 
 // ── Core domain types ──────────────────────────────────────────────────────
 
-export type TaskStatus = 'pending' | 'claimed' | 'done' | 'blocked'
+export type TaskStatus = 'pending' | 'claimed' | 'in_progress' | 'done' | 'blocked'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type MessageType = 'chat' | 'update' | 'alert' | 'task' | 'code' | 'approval' | 'plan'
 export type AgentStatus = 'online' | 'idle' | 'offline'
@@ -24,10 +24,12 @@ export interface Task {
   skills: string[] | null
   blocked_by: string[] | null
   claimed_by: string | null
+  assigned_to?: string | null
   claimed_at: string | null       // ISO 8601
   result: string | null
   completed_at: string | null     // ISO 8601
   created_at: string | null       // ISO 8601
+  tags?: string[]
 }
 
 export interface ClaimRequest {
@@ -120,8 +122,11 @@ export interface Idea {
   author: string
   title: string
   description: string
+  body?: string
   status: IdeaStatus
   vote_count: number
+  reaction_count: number
+  user_voted?: boolean
   approved_by: string | null
   created_at: string              // ISO 8601
 }
@@ -146,8 +151,11 @@ export interface TokenUsage {
 export interface TokenBudget {
   agent: string
   total_cost_usd: number
+  total_input_tokens?: number
+  total_output_tokens?: number
   ok: boolean
   daily_limit_usd?: number
+  daily_budget_usd?: number
   monthly_limit_usd?: number
 }
 

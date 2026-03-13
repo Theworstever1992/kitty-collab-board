@@ -40,7 +40,7 @@ import type { ChatMessage } from '../types'
 const props = defineProps<{ parent: ChatMessage; room: string; agentName: string }>()
 defineEmits(['close'])
 
-const { messages, connected, sendMessage, react: wsReact, unreact: wsUnreact, connect } = useWebSocket()
+const { messages, sendMessage, react: wsReact, unreact: wsUnreact, connect } = useWebSocket()
 const draft = ref('')
 const repliesEl = ref<HTMLElement | null>(null)
 

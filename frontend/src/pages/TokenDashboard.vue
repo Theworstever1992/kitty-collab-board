@@ -16,7 +16,7 @@
           </div>
           <div class="agent-stats">
             <span>${{ row.total_cost_usd.toFixed(4) }}</span>
-            <span class="dim">{{ row.total_input_tokens.toLocaleString() }} in / {{ row.total_output_tokens.toLocaleString() }} out</span>
+            <span class="dim">{{ (row.total_input_tokens ?? 0).toLocaleString() }} in / {{ (row.total_output_tokens ?? 0).toLocaleString() }} out</span>
             <span v-if="row.daily_budget_usd" class="budget" :class="{ over: row.total_cost_usd > row.daily_budget_usd }">
               budget ${{ row.daily_budget_usd }}
             </span>

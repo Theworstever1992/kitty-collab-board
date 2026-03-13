@@ -11,7 +11,7 @@
       <div v-for="item in items" :key="item.id" class="ctx-item">
         <div class="ctx-item-header">
           <span class="ctx-type">{{ item.source_type }}</span>
-          <span class="ctx-score">{{ (item.similarity_score * 100).toFixed(0) }}% match</span>
+          <span class="ctx-score">{{ ((item.similarity_score ?? 0) * 100).toFixed(0) }}% match</span>
           <span class="ctx-ts dim">{{ fmtDate(item.created_at) }}</span>
         </div>
         <div class="ctx-text">{{ item.content }}</div>

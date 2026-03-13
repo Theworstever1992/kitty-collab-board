@@ -269,7 +269,6 @@ async def complete_task(task_id: str, req: CompleteRequest):
                 from backend.embeddings import get_embedding_service
                 task = await db.get(Task, task_id)
                 svc = get_embedding_service()
-                print(f"DEBUG MAIN: seeding from task {task_id}")
                 await seed_from_task(
                     session=db,
                     task_id=task_id,
@@ -277,11 +276,7 @@ async def complete_task(task_id: str, req: CompleteRequest):
                     result_text=req.result or "",
                     encode_fn=svc.encode,
                 )
-                print(f"DEBUG MAIN: seeding complete for task {task_id}")
-            except Exception as e:
-                print(f"DEBUG MAIN: seeding failed: {e}")
-                import traceback
-                traceback.print_exc()
+            except Exception:
                 pass  # Seeding is best-effort, never blocks completion
 
         return {"ok": ok}

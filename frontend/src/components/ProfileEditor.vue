@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive } from 'vue'
 import { api } from '../api/client'
 import type { Agent } from '../types'
 
@@ -58,7 +58,7 @@ async function save() {
   const payload = {
     bio: form.bio,
     personality_seed: form.personality_seed,
-    skills: skillsInput.value.split(',').map(s => s.trim()).filter(Boolean),
+    skills: skillsInput.value.split(',').map((s: string) => s.trim()).filter(Boolean),
     avatar_svg: form.avatar_svg || undefined,
   }
   const res = await api.updateProfile(props.agent.name, payload)

@@ -74,20 +74,17 @@ class AgentClient:
 
         try:
             import urllib.request
-            print(f"DEBUG CLIENT: probing {self.api_base}/api/health")
             req = urllib.request.urlopen(
                 f"{self.api_base}/api/health",
                 timeout=_PROBE_TIMEOUT,
             )
             was_online = self._online
             self._online = req.status == 200
-            print(f"DEBUG CLIENT: probe success, online={self._online}")
             # Transition: offline → online → trigger sync
             if not was_online and self._online:
                 self._on_reconnect()
             return self._online
-        except Exception as e:
-            print(f"DEBUG CLIENT: probe failed: {e}")
+        except Exception:
             self._online = False
             return False
 
@@ -100,15 +97,11 @@ class AgentClient:
 
     def _active_backend(self) -> FileBackend:
         """Return the appropriate backend. Falls back to FileBackend silently."""
-        probe_result = self._probe_api()
-        print(f"DEBUG CLIENT: _probe_api={probe_result}, online={self._online}")
-        if probe_result:
+        if self._probe_api():
             try:
                 return self._get_pg_backend()
-            except Exception as e:
-                print(f"DEBUG CLIENT: _get_pg_backend failed: {e}")
+            except Exception:
                 self._online = False
-        print("DEBUG CLIENT: falling back to FileBackend")
         return self._file_backend
 
     def _on_reconnect(self) -> None:
