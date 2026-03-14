@@ -1,16 +1,20 @@
-
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import select, func
+from sqlalchemy import select
 from backend.main import app
-from backend.models import TokenUsage, StandardsViolation, Idea, IdeaVote, ChatMessage
-from agents.agent_client import AgentClient
+from backend.models import TokenUsage, StandardsViolation, Idea, ChatMessage, Agent
 
 @pytest_asyncio.fixture
 async def api_client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
+async def _register_agent(db_session, name):
+    agent = await db_session.get(Agent, name)
+    if not agent:
+        db_session.add(Agent(name=name, role="tester", model="gpt-4o"))
+        await db_session.commit()
 
 @pytest.mark.asyncio
 async def test_token_logging(api_client, db_session):
@@ -57,13 +61,16 @@ async def test_token_report(api_client, db_session):
 @pytest.mark.asyncio
 async def test_violation_creation(api_client, db_session):
     """Violation creation test — POST violation, assert in standards_violations table"""
+    await _register_agent(db_session, "claude")
+
     payload = {
         "agent_name": "claude",
         "violation_type": "off_topic",
         "description": "Agent was talking about dogs on a cat board.",
         "severity": "high"
     }
-    response = await api_client.post("/api/v2/governance/violations", json=payload)
+    # Note: Use the consolidated endpoint
+    response = await api_client.post("/api/v2/violations/", json=payload)
     assert response.status_code == 201
     data = response.json()
     assert data["agent_id"] == "claude"
@@ -78,6 +85,9 @@ async def test_violation_creation(api_client, db_session):
 @pytest.mark.asyncio
 async def test_repeat_offender_query(api_client, db_session):
     """Repeat offender query test — 3 violations same agent, GET /violations?agent_name= returns all 3"""
+    await _register_agent(db_session, "bad-cat")
+    await _register_agent(db_session, "good-cat")
+
     for i in range(3):
         db_session.add(StandardsViolation(
             agent_id="bad-cat",
@@ -88,7 +98,8 @@ async def test_repeat_offender_query(api_client, db_session):
     db_session.add(StandardsViolation(agent_id="good-cat", violation_type="purring", notes="Nice cat", severity="low"))
     await db_session.commit()
     
-    response = await api_client.get("/api/v2/governance/violations?agent_name=bad-cat")
+    # Note: Use the consolidated endpoint
+    response = await api_client.get("/api/v2/violations/?agent_name=bad-cat")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 3
@@ -113,7 +124,6 @@ async def test_ideas_approval_flow(api_client, db_session):
         "status": "approved",
         "reviewed_by": "copilot"
     }
-    # Note: ideas.py uses PATCH /{idea_id}/status
     patch_resp = await api_client.patch(f"/api/v2/ideas/{idea_id}/status", json=approve_payload)
     assert patch_resp.status_code == 200
     data = patch_resp.json()
@@ -141,7 +151,6 @@ async def test_ideas_rejection(api_client, db_session):
 async def test_token_manager_agent_mock(api_client, db_session):
     """
     Token Manager agent test — run one cycle, assert report posted to #manager channel.
-    Since the agent doesn't exist yet, we'll test the logic that it would use.
     """
     # 1. Seed some token usage
     db_session.add(TokenUsage(agent="qwen", input_tokens=5000, output_tokens=2000, cost_usd=0.05, model="gpt-4o"))

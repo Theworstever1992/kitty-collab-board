@@ -1,19 +1,39 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
 from backend.database import get_db
 from backend.models import StandardsViolation, Agent
 
 router = APIRouter(prefix="/api/v2/violations", tags=["standards"])
 
+from pydantic import BaseModel, Field, ConfigDict
+
+class ViolationIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    violation_type: str = Field(..., description="Type of violation (e.g. 'off_topic')")
+    agent_id: str = Field(..., alias="agent_name", description="ID of the agent who committed the violation")
+    task_id: Optional[str] = Field(None, description="Optional task ID associated with the violation")
+    severity: str = Field("medium", description="Severity level: low, medium, high, critical")
+    notes: Optional[str] = Field(None, alias="description", description="Detailed description of the violation")
+
+def _violation_dict(v: StandardsViolation) -> dict:
+    return {
+        "id": v.id,
+        "violation_type": v.violation_type,
+        "agent_id": v.agent_id,
+        "task_id": v.task_id,
+        "severity": v.severity,
+        "notes": v.notes,
+        "flagged_at": v.flagged_at.isoformat() if v.flagged_at else None,
+    }
 
 @router.get("/")
 async def list_violations(
-    agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
+    agent_id: Optional[str] = Query(None, alias="agent_name", description="Filter by agent ID"),
     violation_type: Optional[str] = Query(None, description="Filter by violation type"),
     severity: Optional[str] = Query(None, description="Filter by severity"),
     limit: int = Query(50, description="Max results"),
@@ -34,20 +54,7 @@ async def list_violations(
     result = await db.execute(stmt)
     violations = result.scalars().all()
     
-    res_list = []
-    for v in violations:
-        v_dict = {
-            "id": v.id,
-            "violation_type": v.violation_type,
-            "agent_id": v.agent_id,
-            "task_id": v.task_id,
-            "severity": v.severity,
-            "notes": v.notes,
-            "flagged_at": v.flagged_at.isoformat() if v.flagged_at else None,
-        }
-        res_list.append(v_dict)
-    
-    return res_list
+    return [_violation_dict(v) for v in violations]
 
 
 @router.get("/repeat-offenders")
@@ -82,14 +89,6 @@ async def get_repeat_offenders(
     return offenders
 
 
-from pydantic import BaseModel
-class ViolationIn(BaseModel):
-    violation_type: str
-    agent_id: str
-    task_id: Optional[str] = None
-    severity: str = "medium"
-    notes: Optional[str] = None
-
 @router.post("/", status_code=201)
 async def create_violation(
     req: ViolationIn,
@@ -104,6 +103,12 @@ async def create_violation(
     # Check if agent exists
     agent = await db.get(Agent, req.agent_id)
     if not agent:
+        # For tests or new agents, we might want to be more lenient or auto-register,
+        # but 404 is technically correct if we want to enforce agent presence.
+        # Given test_governance.py doesn't always register agents first,
+        # let's check if we should be more lenient.
+        # Actually, test_governance.py doesn't register 'claude' before violation.
+        # I'll keep it strict for now and update tests if needed.
         raise HTTPException(status_code=404, detail=f"Agent {req.agent_id} not found")
     
     violation = StandardsViolation(
@@ -112,19 +117,11 @@ async def create_violation(
         task_id=req.task_id,
         severity=req.severity,
         notes=req.notes,
-        flagged_at=datetime.now(datetime.UTC),
+        flagged_at=datetime.now(timezone.utc),
     )
     
     db.add(violation)
     await db.commit()
     await db.refresh(violation)
     
-    return {
-        "id": violation.id,
-        "violation_type": req.violation_type,
-        "agent_id": req.agent_id,
-        "task_id": req.task_id,
-        "severity": req.severity,
-        "notes": req.notes,
-        "flagged_at": violation.flagged_at.isoformat(),
-    }
+    return _violation_dict(violation)
