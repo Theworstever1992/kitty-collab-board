@@ -83,10 +83,10 @@ def status_emoji(status: str) -> str:
 def print_dashboard():
     os.system("cls" if os.name == "nt" else "clear")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"""
+    print(r"""
   /\_____/\   🐱 KITTY COLLAB BOARD — MISSION CONTROL
  /  o   o  \  codename: CLOWDER
-( ==  ^  == )  {now}
+( ==  ^  == )  """ + now + r"""
  )         (   ─────────────────────────────────────────
 """)
 
@@ -136,7 +136,7 @@ def simple_loop():
 
 def curses_loop(stdscr):
     curses.curs_set(0)
-    stdscr.nodelay(True)
+    stdscr.timeout(3000)
     curses.start_color()
     curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -144,10 +144,6 @@ def curses_loop(stdscr):
     curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
     while True:
-        key = stdscr.getch()
-        if key == ord("q"):
-            break
-
         stdscr.clear()
         h, w = stdscr.getmaxyx()
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -188,7 +184,17 @@ def curses_loop(stdscr):
                 break
 
         stdscr.refresh()
-        time.sleep(3)
+
+        key = stdscr.getch()
+        if key == ord("q"):
+            break
+        elif key == ord("a"):
+            curses.endwin()
+            cli_add_task()
+            stdscr.clear()
+            stdscr.timeout(3000)
+        elif key == ord("r"):
+            pass # just let it refresh
 
 
 # ------------------------------------------------------------------
