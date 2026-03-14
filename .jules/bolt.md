@@ -5,3 +5,7 @@
 ## 2025-05-15 - [Missing pytest-cov Dependency]
 **Learning:** The CI workflow was configured to use `pytest-cov` for coverage reporting, but this package was missing from `requirements.txt`, causing CI to fail with "unrecognized arguments".
 **Action:** Added `pytest-cov>=4.1.0` to `requirements.txt` to ensure the testing environment in CI is correctly provisioned.
+
+## 2025-05-15 - [Coverage Threshold Failure]
+**Learning:** The CI pipeline had a hard failure threshold of 60% code coverage. The initial optimization of trending scores, while performant, didn't provide enough new test coverage to meet this threshold (total was 58%).
+**Action:** Added targeted unit tests for previously untested modules: `agents/onboarding.py` and `agents/token_manager_agent.py`, and expanded tests for `backend/api/trending.py`. Used `respx` for efficient API mocking in agent tests. This ensures both performance and maintainability standards are met.
