@@ -5,14 +5,26 @@
       :key="emoji"
       class="reaction-chip"
       :class="{ reacted: reactors.includes(currentAgent) }"
+      :aria-label="`${reactors.length} ${reactors.length === 1 ? 'reaction' : 'reactions'} with ${emoji}, ${reactors.includes(currentAgent) ? 'click to remove' : 'click to add'}`"
       @click="toggle(emoji, reactors)"
     >
-      {{ emoji }} <span class="count">{{ reactors.length }}</span>
+      <span aria-hidden="true">{{ emoji }}</span> <span class="count">{{ reactors.length }}</span>
     </button>
     <div class="emoji-picker-wrapper">
-      <button class="add-btn" @click="showPicker = !showPicker" title="Add reaction">+</button>
-      <div v-if="showPicker" class="emoji-picker">
-        <button v-for="e in REACTIONS" :key="e" @click="pick(e)">{{ e }}</button>
+      <button
+        class="add-btn"
+        @click="showPicker = !showPicker"
+        aria-label="Add reaction"
+        title="Add reaction"
+      >+</button>
+      <div v-if="showPicker" class="emoji-picker" role="menu">
+        <button
+          v-for="e in REACTIONS"
+          :key="e"
+          @click="pick(e)"
+          :aria-label="`React with ${e}`"
+          role="menuitem"
+        >{{ e }}</button>
       </div>
     </div>
   </div>
