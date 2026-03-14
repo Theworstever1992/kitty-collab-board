@@ -3,6 +3,7 @@ exports.py — Agent export/import for portability across projects.
 """
 
 import datetime
+from datetime import timezone
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -52,7 +53,7 @@ async def export_agent(name: str, format: str = "json"):
         "personality_seed": agent.personality_seed or "",
         "rag_config": {},
         "system_prompt": "",
-        "exported_at": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
+        "exported_at": datetime.datetime.now(timezone.utc).isoformat() + "Z",
     }
 
     if format == "md":
@@ -110,7 +111,7 @@ async def import_agent(req: ImportAgentRequest):
                 bio=req.bio,
                 skills=req.skills,
                 personality_seed=req.personality_seed,
-                hired_at=datetime.datetime.now(datetime.UTC),
+                hired_at=datetime.datetime.now(timezone.utc),
             ))
 
         await db.commit()

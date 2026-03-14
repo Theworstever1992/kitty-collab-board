@@ -78,7 +78,7 @@ class BaseLeader:
             if task.get("id") == task_id and task.get("status") == "pending":
                 task["status"] = "claimed"
                 task["claimed_by"] = self.name
-                task["claimed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
+                task["claimed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 claimed = True
                 break
 
@@ -96,7 +96,7 @@ class BaseLeader:
             if task.get("id") == task_id and task.get("claimed_by") == self.name:
                 task["status"] = "done"
                 task["result"] = result
-                task["completed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
+                task["completed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 break
 
         atomic_write(board_file, board)
@@ -125,7 +125,7 @@ class BaseLeader:
             "personality_seed": config.get("personality_seed", ""),
             "team_id": self.team_id,
             "spawned_by": self.name,
-            "spawned_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            "spawned_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "status": "idle",
         }
 
