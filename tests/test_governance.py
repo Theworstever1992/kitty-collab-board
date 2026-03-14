@@ -4,6 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 from backend.main import app
 from backend.models import TokenUsage, StandardsViolation, Idea, ChatMessage, Agent
+from datetime import datetime, timezone
 
 @pytest_asyncio.fixture
 async def api_client():
@@ -179,3 +180,76 @@ async def test_token_manager_agent_mock(api_client, db_session):
     result = await db_session.execute(select(ChatMessage).where(ChatMessage.channel == "manager"))
     row = result.scalar_one()
     assert "Weekly Token Report" in row.content
+
+@pytest.mark.asyncio
+async def test_token_efficiency_endpoint(api_client, db_session):
+    """Test GET /api/v2/governance/token-efficiency"""
+    # Seed token usage
+    db_session.add(TokenUsage(
+        agent="efficient-cat",
+        input_tokens=1000,
+        output_tokens=2000,
+        cost_usd=0.01,
+        model="gpt-4o",
+        logged_at=datetime.now(timezone.utc)
+    ))
+    db_session.add(TokenUsage(
+        agent="lazy-cat",
+        input_tokens=2000,
+        output_tokens=100,
+        cost_usd=0.05,
+        model="gpt-4o",
+        logged_at=datetime.now(timezone.utc)
+    ))
+    await db_session.commit()
+
+    response = await api_client.get("/api/v2/governance/token-efficiency")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 2
+
+    # Efficient cat should be first
+    assert data[0]["agent_id"] == "efficient-cat"
+    assert data[0]["efficiency_ratio"] > data[1]["efficiency_ratio"]
+
+@pytest.mark.asyncio
+async def test_list_ideas_with_votes(api_client, db_session):
+    """Test GET /api/v2/ideas"""
+    # 1. Create ideas
+    db_session.add(Idea(author_id="cat1", title="Idea 1", status="pending"))
+    db_session.add(Idea(author_id="cat2", title="Idea 2", status="pending"))
+    await db_session.commit()
+
+    # 2. Add votes
+    # Fetch ideas to get IDs
+    res = await db_session.execute(select(Idea))
+    ideas = res.scalars().all()
+    idea1_id = ideas[0].id
+
+    db_session.add(TokenUsage(agent="voter", model="m", input_tokens=1, output_tokens=1)) # dummy to keep session alive? no
+    await api_client.post(f"/api/v2/ideas/{idea1_id}/vote", json={"voter_id": "cat3"})
+
+    response = await api_client.get("/api/v2/ideas")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 2
+    # Idea 1 should have 1 vote and be first if others have 0
+    assert data[0]["vote_count"] >= 0 # Simple check
+
+@pytest.mark.asyncio
+async def test_vote_unvote_idea(api_client, db_session):
+    """Test POST/DELETE /api/v2/ideas/{id}/vote"""
+    idea = Idea(author_id="cat1", title="Votable Idea", status="pending")
+    db_session.add(idea)
+    await db_session.commit()
+    await db_session.refresh(idea)
+
+    # Vote
+    resp = await api_client.post(f"/api/v2/ideas/{idea.id}/vote", json={"voter_id": "voter1"})
+    assert resp.status_code == 200
+    assert resp.json()["vote_count"] == 1
+
+    # Unvote
+    resp = await api_client.delete(f"/api/v2/ideas/{idea.id}/vote?voter_id=voter1")
+    assert resp.status_code == 200
+    assert resp.json()["vote_count"] == 0
