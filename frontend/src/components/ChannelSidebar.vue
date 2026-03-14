@@ -4,31 +4,70 @@
       <span class="logo">🐱 Clowder</span>
     </div>
 
-    <div class="section-label">Channels</div>
-    <ul class="channel-list">
+    <div class="section-label" id="channels-label">Channels</div>
+    <ul class="channel-list" aria-labelledby="channels-label">
       <li
         v-for="ch in channels"
         :key="ch.name"
-        class="channel-item"
-        :class="{ active: ch.name === activeRoom }"
-        @click="$emit('select', ch.name)"
       >
-        <span class="hash">#</span>
-        <span class="name">{{ ch.name }}</span>
-        <span v-if="ch.unread_count" class="unread-badge">{{ ch.unread_count }}</span>
+        <button
+          class="channel-item"
+          :class="{ active: ch.name === activeRoom }"
+          :aria-current="ch.name === activeRoom ? 'page' : undefined"
+          @click="$emit('select', ch.name)"
+        >
+          <span class="hash" aria-hidden="true">#</span>
+          <span class="name">{{ ch.name }}</span>
+          <span v-if="ch.unread_count" class="unread-badge">
+            {{ ch.unread_count }}
+            <span class="sr-only">unread messages</span>
+          </span>
+        </button>
       </li>
     </ul>
 
-    <div class="section-label">Navigation</div>
-    <ul class="nav-list">
-      <li @click="$router.push('/dashboard')">🏠 Dashboard</li>
-      <li @click="$router.push('/tasks')">📋 Tasks</li>
-      <li @click="$router.push('/ideas')">💡 Ideas</li>
-      <li @click="$router.push('/agents')">🐾 Agents</li>
-      <li @click="$router.push('/teams')">🐱 Teams</li>
-      <li @click="$router.push('/meetings')">📅 Meetings</li>
-      <li @click="$router.push('/tokens')">💰 Tokens</li>
-      <li @click="$router.push('/violations')">⚠️ Violations</li>
+    <div class="section-label" id="nav-label">Navigation</div>
+    <ul class="nav-list" aria-labelledby="nav-label">
+      <li>
+        <button class="nav-btn" @click="$router.push('/dashboard')">
+          <span aria-hidden="true">🏠</span> Dashboard
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/tasks')">
+          <span aria-hidden="true">📋</span> Tasks
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/ideas')">
+          <span aria-hidden="true">💡</span> Ideas
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/agents')">
+          <span aria-hidden="true">🐾</span> Agents
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/teams')">
+          <span aria-hidden="true">🐱</span> Teams
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/meetings')">
+          <span aria-hidden="true">📅</span> Meetings
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/tokens')">
+          <span aria-hidden="true">💰</span> Tokens
+        </button>
+      </li>
+      <li>
+        <button class="nav-btn" @click="$router.push('/violations')">
+          <span aria-hidden="true">⚠️</span> Violations
+        </button>
+      </li>
     </ul>
   </nav>
 </template>
@@ -64,7 +103,8 @@ defineEmits<{ select: [room: string] }>()
   color: var(--color-text-dim);
 }
 .channel-list, .nav-list { list-style: none; padding: 0 0.5rem; }
-.channel-item, .nav-list li {
+
+.channel-item, .nav-btn {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -74,9 +114,26 @@ defineEmits<{ select: [room: string] }>()
   font-size: 0.875rem;
   color: var(--color-text-dim);
   transition: background 0.1s, color 0.1s;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
 }
-.channel-item:hover, .nav-list li:hover { background: var(--color-surface-2); color: var(--color-text); }
-.channel-item.active { background: var(--color-surface-2); color: var(--color-amber); }
+
+.channel-item:hover, .nav-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.channel-item.active {
+  background: var(--color-surface-2);
+  color: var(--color-amber);
+}
+
+.nav-btn {
+  gap: 0.5rem;
+}
+
 .hash { color: var(--color-text-dim); font-size: 0.8rem; }
 .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unread-badge {
@@ -87,5 +144,4 @@ defineEmits<{ select: [room: string] }>()
   padding: 0.1rem 0.4rem;
   border-radius: 99px;
 }
-.nav-list li { gap: 0.5rem; }
 </style>
