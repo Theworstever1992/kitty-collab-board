@@ -4,7 +4,7 @@ Includes token efficiency scoring per agent.
 """
 
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy import func, select, desc
@@ -63,7 +63,7 @@ async def token_efficiency(
     Returns agents sorted by efficiency score (descending).
     """
     # Get token usage for the specified period
-    cutoff = datetime.now(datetime.UTC) - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     query = select(
         TokenUsage.agent,

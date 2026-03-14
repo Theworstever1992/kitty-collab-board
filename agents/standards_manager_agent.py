@@ -50,7 +50,7 @@ class StandardsManagerAgent:
     """
     Reads completed tasks from the API, scans their ``result`` field for
     known violation patterns, and posts each finding back via
-    ``POST /api/v2/governance/violations``.
+    ``POST /api/v2/violations``.
     """
 
     def __init__(self, api_base: str, agent_name: str = "standards-manager") -> None:
@@ -81,7 +81,7 @@ class StandardsManagerAgent:
                 found = self._scan(result_text)
                 for violation in found:
                     await client.post(
-                        f"{self.api_base}/api/v2/governance/violations",
+                        f"{self.api_base}/api/v2/violations",
                         json={
                             "agent_name": task.get("assigned_to") or "unknown",
                             "task_id": task.get("id"),
@@ -98,7 +98,7 @@ class StandardsManagerAgent:
             msg = (
                 f"⚠️ **Standards scan complete** — {total_violations} violation(s) found "
                 f"across {scanned} completed tasks. "
-                f"Check `/violations` in the UI or `GET /api/v2/governance/violations`."
+                f"Check `/violations` in the UI or `GET /api/v2/violations`."
             )
         else:
             msg = (
