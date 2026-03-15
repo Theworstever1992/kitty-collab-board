@@ -226,7 +226,6 @@ async def test_list_ideas_with_votes(api_client, db_session):
     ideas = res.scalars().all()
     idea1_id = ideas[0].id
 
-    db_session.add(TokenUsage(agent="voter", model="m", input_tokens=1, output_tokens=1)) # dummy to keep session alive? no
     await api_client.post(f"/api/v2/ideas/{idea1_id}/vote", json={"voter_id": "cat3"})
 
     response = await api_client.get("/api/v2/ideas")

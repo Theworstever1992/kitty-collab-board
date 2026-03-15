@@ -58,7 +58,7 @@ async def test_ideas_full_lifecycle(api_client, db_session):
     assert resp.json()["approved_by"] == "admin"
 
 @pytest.mark.asyncio
-async def test_trending_update_endpoint(api_client):
+async def test_trending_update_endpoint(api_client, db_session):
     resp = await api_client.post("/api/v2/trending/update")
     assert resp.status_code == 200
     assert "scores_updated" in resp.json()

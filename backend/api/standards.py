@@ -103,12 +103,6 @@ async def create_violation(
     # Check if agent exists
     agent = await db.get(Agent, req.agent_id)
     if not agent:
-        # For tests or new agents, we might want to be more lenient or auto-register,
-        # but 404 is technically correct if we want to enforce agent presence.
-        # Given test_governance.py doesn't always register agents first,
-        # let's check if we should be more lenient.
-        # Actually, test_governance.py doesn't register 'claude' before violation.
-        # I'll keep it strict for now and update tests if needed.
         raise HTTPException(status_code=404, detail=f"Agent {req.agent_id} not found")
     
     violation = StandardsViolation(
