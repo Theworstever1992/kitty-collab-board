@@ -194,7 +194,7 @@ def curses_loop(stdscr):
             stdscr.clear()
             stdscr.timeout(3000)
         elif key == ord("r"):
-            pass # just let it refresh
+            pass  # just let it refresh
 
 
 # ------------------------------------------------------------------
