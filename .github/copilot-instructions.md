@@ -3,6 +3,29 @@
 > **This file is the authoritative context source for all AI agents working on this project.**
 > It was written as a consolidated reference before a file cleanup. Treat it as ground truth.
 
+## Quick Reference Card
+
+**Project Type:** Multi-agent coordination platform
+**Primary Languages:** Python 3.11+, TypeScript (Vue 3), SQL
+**Key Technologies:** FastAPI, PostgreSQL, pgvector, SQLAlchemy, Vue 3, WebSocket
+**Test Framework:** pytest + pytest-asyncio
+**No Linter:** No flake8/pylint/pyproject.toml configured
+
+**First-time setup:**
+```bash
+pip install -r requirements.txt
+python3 wake_up_all.py
+pytest tests/  # verify everything works
+```
+
+**Common tasks:**
+- Run v1 server: `python3 -m uvicorn web_chat:app --host 0.0.0.0 --port 8080 --reload`
+- Run v2 API: `python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 9000 --reload`
+- Run tests: `pytest tests/` or `pytest tests/test_file_backend.py::test_claim_task_conflict`
+- CLI: `python3 meow.py` (see full command reference in meow.py section below)
+
+---
+
 ## What This Project Is
 
 **Clowder** is a dual-mode multi-agent coordination platform. Humans and AI agents (Claude, Qwen, Copilot, Gemini, etc.) coordinate via:
@@ -608,6 +631,55 @@ python3 meow.py mc                         # Mission Control TUI (mission_contro
 {"type": "message", "channel": "general", "sender": "copilot", "content": "...", "message_type": "chat"}
 {"type": "ping"}
 ```
+
+---
+
+## Security Guidelines
+
+### Critical Rules
+1. **Never commit secrets** - No API keys, passwords, tokens, or credentials in code
+   - Use environment variables for all sensitive configuration
+   - Check `board/.env` is in `.gitignore`
+   - Standards Manager flags `password = "literal"` patterns
+
+2. **Input validation** - Always validate and sanitize user input
+   - Avatar uploads: SVG only, max 50KB, XML-validated (`validate_avatar_svg()`)
+   - File writes: Use `atomic_write()`, never direct `open(..., 'w')`
+   - SQL: Use SQLAlchemy parameterized queries (never string concatenation)
+   - WebSocket: Validate message structure before broadcast
+
+3. **Avoid common vulnerabilities**
+   - No bare `except:` clauses (Standards Manager flags these as high severity)
+   - No `eval()` or `exec()` on untrusted input
+   - No shell command injection via `os.system()` or unescaped subprocess calls
+   - No XSS: Frontend uses Vue's automatic escaping, don't bypass with `v-html` on user content
+
+4. **Authentication & Authorization**
+   - v2 has **no authentication** - designed for local/LAN use only
+   - v3 will add auth layer - do not implement ad-hoc auth in v2
+   - No CORS restrictions in dev mode - production Nginx should enforce same-origin
+
+5. **File system security**
+   - Board files use atomic writes via `os.replace()` (POSIX rename2)
+   - All board writes go through `agents/atomic.py`
+   - Never delete files outside `board/` directory
+   - Temp files must go in `/tmp`, never committed to repo
+
+6. **Database security**
+   - Connection strings in environment variables only
+   - Test DB uses separate credentials and port 5433
+   - `NullPool` in tests to prevent connection leaks
+   - No raw SQL - use SQLAlchemy ORM or core expressions
+
+### Standards Manager Enforcement
+The Standards Manager agent automatically scans completed task results for violations:
+- `no_type_hints` (medium) - Missing return type annotations
+- `bare_except` (high) - Catching all exceptions
+- `hardcoded_secret` (high) - Literal passwords/keys 6+ chars
+- `no_docstring` (low) - Missing docstrings on classes
+- `todo_left_in_result` (low) - TODO/FIXME/HACK comments
+
+Violations are logged to `POST /api/v2/governance/violations`.
 
 ---
 
