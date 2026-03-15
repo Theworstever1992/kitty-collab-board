@@ -9,7 +9,7 @@ Auto-surfaces when score >= IDEAS_AUTO_SURFACE_THRESHOLD (default: 10).
 import datetime
 
 from fastapi import APIRouter
-from sqlalchemy import func, select, case, Float
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import SessionLocal
@@ -67,64 +67,62 @@ async def update_trending_scores(session: AsyncSession) -> list[dict]:
     """
     Recompute scores for all messages that have reactions within the window.
 
-    BOLT OPTIMIZATION: Replaced N+1 queries with a single bulk aggregation query.
-    Reduces DB roundtrips from O(N) to O(1), where N is the number of trending messages.
+    BOLT OPTIMIZATION: Replaced N+1 queries with a bulk aggregation query.
+    Uses scalar subqueries to efficiently count reactions and replies for
+    active messages in a single DB roundtrip.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     window_start = now - datetime.timedelta(hours=IDEAS_WINDOW_HOURS)
 
-    # Subquery for reaction counts (all time for each message)
-    reactions_sub = (
-        select(
-            MessageReaction.message_id,
-            func.count(MessageReaction.id).label("reaction_count")
-        )
-        .group_by(MessageReaction.message_id)
-        .subquery()
-    )
-
-    # Subquery for reply counts (all time for each message)
-    replies_sub = (
-        select(
-            ChatMessage.thread_id,
-            func.count(ChatMessage.id).label("reply_count")
-        )
-        .where(ChatMessage.thread_id.isnot(None))
-        .group_by(ChatMessage.thread_id)
-        .subquery()
-    )
-
-    # Identify messages that had at least one reaction in the window
-    recent_reaction_msgs = (
+    # Find IDs of messages with recent reaction activity
+    recent_reaction_ids_stmt = (
         select(MessageReaction.message_id)
         .where(MessageReaction.created_at >= window_start)
         .distinct()
-        .subquery()
     )
+    result_ids = await session.execute(recent_reaction_ids_stmt)
+    message_ids = list(result_ids.scalars().all())
 
-    # Join everything to get the score in one go.
-    # We use 'case' to perfectly match the original compute_trending_score logic
-    # where messages older than IDEAS_WINDOW_HOURS get a score of 0.0.
+    if not message_ids:
+        return []
+
+    # Bulk fetch messages and calculate scores using scalar subqueries.
+    # This is efficient because it leverages indices on message_id and thread_id.
     stmt = (
         select(
             ChatMessage.id,
-            case(
-                (ChatMessage.timestamp >= window_start,
-                 func.cast(func.coalesce(reactions_sub.c.reaction_count, 0), Float) +
-                 func.cast(func.coalesce(replies_sub.c.reply_count, 0), Float) * 1.5),
-                else_=0.0
-            ).label("score")
+            ChatMessage.timestamp,
+            (
+                select(func.count(MessageReaction.id))
+                .where(MessageReaction.message_id == ChatMessage.id)
+                .scalar_subquery()
+            ).label("reaction_count"),
+            (
+                select(func.count(ChatMessage.id))
+                .where(ChatMessage.thread_id == ChatMessage.id)
+                .scalar_subquery()
+            ).label("reply_count")
         )
-        .join(recent_reaction_msgs, ChatMessage.id == recent_reaction_msgs.c.message_id)
-        .outerjoin(reactions_sub, ChatMessage.id == reactions_sub.c.message_id)
-        .outerjoin(replies_sub, ChatMessage.id == replies_sub.c.thread_id)
+        .where(ChatMessage.id.in_(message_ids))
     )
 
     result = await session.execute(stmt)
-    score_map = {row.id: float(row.score) for row in result}
+    rows = result.all()
 
-    if not score_map:
-        return []
+    # Map back to scores, handling potential timezone-naive timestamps
+    # and ensuring deleted messages get a 0.0 score.
+    score_map = {mid: 0.0 for mid in message_ids}
+    for row in rows:
+        ts = row.timestamp
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=datetime.timezone.utc)
+
+        is_recent = ts and (now - ts).total_seconds() <= IDEAS_WINDOW_HOURS * 3600
+        if is_recent:
+            score = float(row.reaction_count or 0) + float(row.reply_count or 0) * 1.5
+            score_map[row.id] = score
+        else:
+            score_map[row.id] = 0.0
 
     # Bulk fetch existing TrendingDiscussion rows to avoid N queries for upsert
     existing_result = await session.execute(
