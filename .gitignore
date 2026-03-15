@@ -40,3 +40,8 @@ NATURAL_LANGUAGE.md
 STANDING_ORDERS.md
 MULTI_AI_COLLAB.md
 MANAGER_SYSTEM.md
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
