@@ -9,3 +9,11 @@
 ## 2025-05-15 - [Coverage Threshold Failure]
 **Learning:** The CI pipeline had a hard failure threshold of 60% code coverage. The initial optimization of trending scores, while performant, didn't provide enough new test coverage to meet this threshold (total was 58%).
 **Action:** Added targeted unit tests for previously untested modules: `agents/onboarding.py` and `agents/token_manager_agent.py`, and expanded tests for `backend/api/trending.py`. Used `respx` for efficient API mocking in agent tests. This ensures both performance and maintainability standards are met.
+
+## 2025-05-15 - [Refinement of Bulk Queries]
+**Learning:** While JOINs with subqueries work for bulk aggregations, **scalar subqueries** in the select list are often cleaner and more idiomatic in SQLAlchemy for "count" operations on related tables. They are also easier to read and maintain.
+**Action:** Refactored the trending score bulk query to use scalar subqueries for reaction and reply counts.
+
+## 2025-05-15 - [Test Coverage for Agents and APIs]
+**Learning:** Reaching coverage thresholds in a multi-component system requires testing both the REST endpoints (FastAPI) and the autonomous agents that consume them. `respx` is invaluable for testing agents without running a full server.
+**Action:** Added unit tests for the Ideas API and the Standards Manager agent, pushing project coverage significantly higher.
