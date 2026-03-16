@@ -17,13 +17,12 @@
         aria-label="Add reaction"
         title="Add reaction"
       >+</button>
-      <div v-if="showPicker" class="emoji-picker" role="menu">
+      <div v-if="showPicker" class="emoji-picker">
         <button
           v-for="e in REACTIONS"
           :key="e"
           @click="pick(e)"
           :aria-label="`React with ${e}`"
-          role="menuitem"
         >{{ e }}</button>
       </div>
     </div>
