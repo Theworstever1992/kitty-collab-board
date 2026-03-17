@@ -15,7 +15,7 @@
     <!-- Idea detail drawer -->
     <div v-if="selected" class="drawer" @click.self="selected = null">
       <div class="drawer-panel">
-        <button class="close" @click="selected = null">✕</button>
+        <button class="close" @click="selected = null" aria-label="Close details">✕</button>
         <h3>{{ selected.title }}</h3>
         <p>{{ selected.body }}</p>
         <div class="drawer-meta">By {{ selected.author }} · {{ selected.reaction_count }} 🐾</div>
