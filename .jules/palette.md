@@ -1,0 +1,3 @@
+## 2024-05-18 - Added ARIA Labels to Close Buttons
+**Learning:** The application extensively uses `✕` (cross) characters within buttons for close actions (e.g., in ContextPanel, MessageThread, and IdeasFeed) without accompanying screen-reader text. This is a recurring pattern indicating a potential systemic lack of ARIA labels for icon-only interactive elements across the codebase.
+**Action:** When adding or reviewing new UI components, verify that all icon-only buttons (especially those using raw characters like `✕` or `+`) have a descriptive `aria-label` attribute.
