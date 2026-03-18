@@ -10,7 +10,7 @@ async def api_client():
         yield ac
 
 @pytest.mark.asyncio
-async def test_agents_api_v2_errors(api_client):
+async def test_agents_api_v2_errors(api_client, test_engine):
     # Get non-existent
     resp = await api_client.get("/api/v2/agents/ghost")
     assert resp.status_code == 404

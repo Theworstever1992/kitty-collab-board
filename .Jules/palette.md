@@ -1,0 +1,3 @@
+## 2024-03-18 - Added ARIA Labels to Close Buttons
+**Learning:** Several overlay components (MessageThread, ContextPanel, IdeasFeed drawer) used plain "✕" characters inside `<button>` tags for closing, without any `aria-label`. This made them effectively invisible or confusing to screen readers.
+**Action:** When creating or modifying modals, drawers, or floating panels with icon-only close buttons, always explicitly add an `aria-label="Close [context]"` attribute to the button element.
