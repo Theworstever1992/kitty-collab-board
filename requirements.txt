@@ -17,6 +17,9 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 
+# ── TUI / Terminal UI ─────────────────────────────────────────────────────────
+rich>=13.0.0
+
 # ── v2 API — RAG / Embeddings (Phase 2) ──────────────────────────────────────
 sentence-transformers>=2.2.2
 
