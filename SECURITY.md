@@ -96,6 +96,138 @@ geofencing behaviour in Russian-speaking malware families.
 
 ---
 
+## Is My Device Compromised?
+
+**Short answer:** possibly yes, if you ran `python3 meow.py` (or any script that
+imports it) on a machine while commit `53e4b84` was present — i.e. between
+**Feb 27, 2026** and **Mar 20, 2026**.
+
+The payload only fully activated when all three conditions were true:
+
+1. `meow.py` was executed (not just downloaded)
+2. The system locale was **not** Russian
+3. The file `~/init.json` did not exist from a previous run in the last 2 days
+
+If you did run `meow.py` on a non-Russian-locale machine during that window,
+treat the device as **potentially compromised** until you complete the checks below.
+
+---
+
+### Indicators of Compromise (IoCs)
+
+Look for the following artefacts the payload would have left behind:
+
+#### Files
+
+| Path | Meaning |
+|------|---------|
+| `~/init.json` | Throttle file — **strong evidence** the payload ran |
+| `i.js` (next to `meow.py`) | Stage-2 JS execution wrapper — **strong evidence** |
+| `~/.node-runtime/` or `/tmp/node-*/` | Secretly downloaded Node.js install |
+| Any `.zip` / `.tar.gz` / `.tar.xz` containing `node-v22.9.0` in `~/` or `/tmp/` | Node.js download artefact |
+
+**Quick check (macOS / Linux):**
+
+```bash
+ls -la ~/init.json 2>/dev/null && echo "FOUND init.json - payload likely ran"
+find ~ /tmp -name 'i.js' 2>/dev/null
+find ~ /tmp -name 'node-v22.9.0*' 2>/dev/null
+ls -la ~/.node-runtime/ 2>/dev/null
+```
+
+**Quick check (Windows PowerShell):**
+
+```powershell
+Test-Path "$env:USERPROFILE\init.json"   # True = payload likely ran
+Get-ChildItem $env:USERPROFILE, $env:TEMP -Filter 'i.js'       -Recurse -ErrorAction SilentlyContinue
+Get-ChildItem $env:USERPROFILE, $env:TEMP -Filter 'node-v22.9.0*' -Recurse -ErrorAction SilentlyContinue
+```
+
+#### Network connections
+
+The payload connected to Solana RPC endpoints and, if it received a C2 URL,
+made an outbound HTTPS request to that URL. Check your firewall/router logs for
+connections to:
+
+```
+api.mainnet-beta.solana.com
+solana-mainnet.gateway.tatum.io
+go.getblock.us
+solana-rpc.publicnode.com
+api.blockeden.xyz
+solana.drpc.org
+solana.leorpc.com
+solana.api.onfinality.io
+solana.api.pocket.network
+nodejs.org  (for the Node.js download)
+```
+
+**Quick check — recent DNS lookups (macOS):**
+
+```bash
+log show --predicate 'process == "mDNSResponder"' --last 30d 2>/dev/null \
+  | grep -E 'solana|blockeden|getblock|leorpc|onfinality|pocket\.network|nodejs\.org'
+```
+
+**Quick check — recent DNS lookups (Linux):**
+
+```bash
+grep -rE 'solana|blockeden|getblock|leorpc|onfinality|pocket\.network|nodejs\.org' \
+  /var/log/syslog /var/log/messages /var/log/daemon.log 2>/dev/null | tail -20
+```
+
+#### Processes
+
+The payload launched `node i.js` in a hidden window (Windows: `CREATE_NO_WINDOW`).
+Check for unexpected `node` processes or recent `node` history:
+
+```bash
+# macOS / Linux — check if node is installed where it shouldn't be
+which node 2>/dev/null
+find ~ /tmp -name 'node' -type f 2>/dev/null
+
+# History check
+grep -E '\bnode\b|\bi\.js\b' ~/.bash_history ~/.zsh_history 2>/dev/null
+```
+
+---
+
+### What to Do If You Find Any IoC
+
+1. **Disconnect the device from the network** immediately.
+2. **Rotate every secret** that was accessible on that machine:
+   - SSH private keys → revoke from GitHub/GitLab, generate new ones
+   - API tokens, `.env` files, `~/.aws/credentials`, `~/.config/gcloud/`
+   - Browser-saved passwords / session cookies
+   - Cryptocurrency wallet seed phrases (assume fully drained)
+3. **Preserve the evidence** (copy `~/init.json`, `i.js`, any Node.js artefacts)
+   before deleting them, in case you want to file a report.
+4. **Delete the artefacts:**
+   ```bash
+   rm -f ~/init.json
+   find ~ -name 'i.js' -delete
+   rm -rf ~/.node-runtime/ /tmp/node-*/
+   ```
+5. **Audit recent activity**: check auth logs, browser history, and any cloud
+   provider access logs for the Feb 27 – Mar 20 window.
+6. **Rebuild the machine** if the IoCs are confirmed, or if you depend on the
+   machine for high-value secrets (wallets, production credentials).  A
+   compromised machine cannot be fully trusted after Stage-2 JS execution.
+
+---
+
+### What to Do If You Find No IoC
+
+If none of the files or connections above are present, the most likely scenarios are:
+
+- You never ran `meow.py` during the affected window, **or**
+- The payload's throttle / geofence prevented execution.
+
+You are almost certainly safe, but rotating any credentials that were in your
+environment during that period is still good practice.
+
+---
+
 ## Automated Safeguards Added
 
 A security scan (`scripts/security_scan.py`) runs in CI on every push and PR.
