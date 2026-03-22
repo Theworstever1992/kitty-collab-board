@@ -228,7 +228,139 @@ environment during that period is still good practice.
 
 ---
 
-## Automated Safeguards Added
+## Could This Have Stolen More Than Crypto? (Passwords, Photos, Notes)
+
+**Short answer: yes, technically.** The wallet-draining capability was the
+*primary advertised purpose* of the Stage-1 Python payload, but the
+**Stage-2 JavaScript file was completely arbitrary code** fetched from the
+attacker's C2 server at runtime. That code ran via the `node` binary as *you*
+— with every read/write privilege your user account has.
+
+Having no cryptocurrency wallet does **not** mean you were unaffected.
+
+---
+
+### What Node.js Can Access Running As Your User
+
+| Data type | Where it lives | Accessible? |
+|-----------|---------------|-------------|
+| **Browser saved passwords** | Chrome/Edge SQLite DB (see paths below) | ✅ Yes — readable and decryptable |
+| **Browser session cookies** | Same profile directory | ✅ Yes — can hijack logged-in sessions |
+| **SSH private keys** | `~/.ssh/id_*` | ✅ Yes — full read access |
+| **AWS / cloud credentials** | `~/.aws/credentials`, `~/.config/gcloud/` | ✅ Yes |
+| **`.env` files / API tokens** | Anywhere in your home directory | ✅ Yes |
+| **Photos** | `~/Pictures/`, `~/Desktop/`, etc. | ✅ Yes — can be read and uploaded |
+| **Notes** | macOS Notes DB, text files, Obsidian vaults | ✅ Yes |
+| **Documents / code** | `~/Documents/`, project directories | ✅ Yes |
+| **Keychain / DPAPI secrets** | macOS Keychain, Windows DPAPI | ⚠️ Yes — accessible as the logged-in user without a separate password |
+
+The most immediately dangerous items after crypto wallets are:
+
+1. **Browser passwords** — Chrome on Windows/macOS stores passwords encrypted
+   with a key that is itself protected by DPAPI/Keychain, which is automatically
+   unlocked when you log in. Any process running as you can decrypt them.
+2. **Browser session cookies** — even if a site uses 2FA, a live session cookie
+   bypasses it. An attacker holding your cookies owns your account until you log
+   out everywhere or change your password.
+3. **SSH private keys** — give access to every server you connect to.
+4. **GitHub / API tokens** — in `~/.gitconfig`, `~/.config/gh/`, or `.env` files.
+
+---
+
+### Where Browser Password Databases Live
+
+#### Google Chrome / Brave / Microsoft Edge
+
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Application Support/Google/Chrome/Default/Login Data` |
+| Windows | `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Login Data` |
+| Linux | `~/.config/google-chrome/Default/Login Data` |
+
+The database file is a **SQLite** file. The passwords are AES-encrypted but the
+decryption key is stored in the same profile and unlocked automatically by your
+OS login — any process running as you can decrypt them.
+
+#### Firefox
+
+| Platform | Path |
+|----------|------|
+| All | `~/.mozilla/firefox/*.default*/logins.json` + `key4.db` |
+| Windows | `%APPDATA%\Mozilla\Firefox\Profiles\*.default\logins.json` |
+
+#### Safari
+
+| Platform | Path |
+|----------|------|
+| macOS | Passwords are in the system Keychain (`login.keychain-db`), accessible to any process you approve. Safari's own passwords require `com.apple.Safari` entitlement — harder to access, but cookies are not protected. |
+
+---
+
+### What To Do About Your Passwords (Even With No Crypto Wallet)
+
+If you ran `meow.py` during the affected window and you find any of the IoC
+files (`~/init.json`, `i.js`, Node.js artefacts):
+
+1. **Change every password saved in your browser immediately.**
+   Go to each account directly (do not use the browser's password autofill
+   while it may be compromised) and change it. Enable 2FA everywhere you can.
+
+2. **Sign out of all active sessions on important accounts** (Google, GitHub,
+   Apple ID, Microsoft, bank, email). Most sites have a "sign out everywhere"
+   or "active sessions" page:
+   - Google: https://myaccount.google.com/security → "Your devices"
+   - GitHub: Settings → Sessions
+   - Apple: Apple ID site → sign out other devices
+   - Facebook/Instagram: Settings → Security → Where you're logged in
+
+3. **Revoke and regenerate any API tokens, SSH keys, or PATs** accessible on
+   that machine (GitHub Personal Access Tokens, AWS access keys, etc.)
+
+4. **Check for suspicious activity** in those accounts — look for logins from
+   unfamiliar locations or times in the Feb 27 – Mar 20 window.
+
+5. **Check if your email was used for new account registrations** during that
+   window — attackers often use stolen browser cookies to register accounts or
+   send password-reset requests while the session is live.
+
+---
+
+### Photos and Notes — Lower Risk, But Not Zero
+
+Photos, notes, and documents are **readable** by any process running as you, but
+exfiltrating large files requires sustained network activity that would be
+visible in connection logs. The Stage-1 payload was specifically optimised as a
+*fast wallet drainer* — it is less likely that large photo libraries were bulk-
+uploaded. However:
+
+- **Small, targeted files** (screenshots, notes containing passwords, photos of
+  ID documents) could have been uploaded quickly.
+- If you store notes in plaintext files or apps like Obsidian, those are just as
+  readable as any other file.
+- macOS Notes are stored in a SQLite database at
+  `~/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite`
+  — fully readable by any process running as you.
+
+If any of your notes or documents contained passwords, account numbers, or
+identification details, treat those as exposed.
+
+---
+
+### Summary Table — Severity By Data Type
+
+| Data type | Likely stolen? | Recommended action |
+|-----------|---------------|-------------------|
+| Crypto wallet seed phrases | Primary target | Assume drained |
+| Browser saved passwords | **High risk** | Change all passwords NOW |
+| Browser session cookies | **High risk** | Sign out of all sessions everywhere |
+| SSH keys | High risk if present | Revoke and regenerate |
+| GitHub / API tokens | High risk if present | Rotate all tokens |
+| `.env` files | High risk if present | Rotate all secrets in them |
+| Photos / documents | Lower risk, not zero | Check for sensitive images/docs |
+| Notes with passwords in them | Same as passwords | Change those passwords |
+| Notes without credentials | Low risk | Monitor for anomalies |
+
+---
 
 A security scan (`scripts/security_scan.py`) runs in CI on every push and PR.
 It rejects code containing:
