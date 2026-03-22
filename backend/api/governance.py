@@ -11,7 +11,7 @@ from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
-from backend.models import TokenUsage
+from backend.models import TokenUsage, StandardsViolation
 
 router = APIRouter(prefix="/api/v2/governance", tags=["governance"])
 
@@ -119,3 +119,46 @@ async def token_efficiency(
     efficiency_data.sort(key=lambda x: x["efficiency_score"], reverse=True)
 
     return efficiency_data
+
+
+# ── Violations proxy (frontend calls /api/v2/governance/violations) ────────────
+
+
+def _violation_dict(v: StandardsViolation) -> dict:
+    return {
+        "id": v.id,
+        "violation_type": v.violation_type,
+        "agent_id": v.agent_id,
+        "task_id": v.task_id,
+        "severity": v.severity,
+        "notes": v.notes,
+        "flagged_at": v.flagged_at.isoformat() if v.flagged_at else None,
+    }
+
+
+@router.get("/violations")
+async def list_violations_governance(
+    agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    limit: int = Query(50, description="Max results"),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    """
+    List standards violations.  Alias under /api/v2/governance so the
+    frontend API client (which calls /v2/governance/violations) works
+    without needing to know about the /api/v2/violations prefix.
+    """
+    stmt = (
+        select(StandardsViolation)
+        .order_by(desc(StandardsViolation.flagged_at))
+        .limit(limit)
+    )
+    if agent_id:
+        stmt = stmt.where(StandardsViolation.agent_id == agent_id)
+    if severity:
+        stmt = stmt.where(StandardsViolation.severity == severity)
+
+    result = await db.execute(stmt)
+    return [_violation_dict(v) for v in result.scalars().all()]
+
+

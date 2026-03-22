@@ -97,9 +97,14 @@ async def list_agents():
         return [_agent_summary(a) for a in rows]
 
 
+@router.get("/{name}/profile")
 @router.get("/{name}")
 async def get_agent(name: str):
-    """Get a single agent's full profile."""
+    """Get a single agent's full profile.
+
+    Accessible at both ``/api/v2/agents/{name}`` and
+    ``/api/v2/agents/{name}/profile`` to satisfy the frontend API client.
+    """
     async with SessionLocal() as db:
         agent = await db.get(Agent, name)
         if not agent:

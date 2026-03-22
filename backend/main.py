@@ -23,8 +23,10 @@ from sqlalchemy import select, update
 
 from backend.config import DEBUG
 from backend.database import SessionLocal, create_tables
-from backend.models import Agent, ChatMessage, Task, Team, TokenUsage
+from backend.models import Agent, ChatMessage, MessageReaction, Task, Team, TokenUsage
+from backend.api.channels import router as channels_router
 from backend.api.context import router as context_router
+from backend.api.tasks_v2 import router as tasks_v2_router
 from backend.api.trending import router as trending_router
 from backend.api.ideas import router as ideas_router
 from backend.api.agents import router as agents_v2_router
@@ -62,7 +64,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(channels_router)
 app.include_router(context_router)
+app.include_router(tasks_v2_router)
 app.include_router(trending_router)
 app.include_router(ideas_router)
 app.include_router(agents_v2_router)
@@ -73,50 +77,171 @@ app.include_router(standards_router)
 
 # ── WebSocket ──────────────────────────────────────────────────────────────────
 
+async def _msg_reactions(db, message_id: str) -> dict:
+    """Return reaction map {emoji: [reactor, ...]} for a message."""
+    rows = (
+        await db.execute(
+            select(MessageReaction).where(MessageReaction.message_id == message_id)
+        )
+    ).scalars().all()
+    result: dict[str, list[str]] = {}
+    for r in rows:
+        result.setdefault(r.reaction_type, []).append(r.reactor_id)
+    return result
+
+
+async def _msg_reply_count(db, message_id: str) -> int:
+    """Return the number of threaded replies for a message."""
+    from sqlalchemy import func as sqlfunc
+    row = (
+        await db.execute(
+            select(sqlfunc.count(ChatMessage.id)).where(
+                ChatMessage.thread_id == message_id
+            )
+        )
+    ).scalar_one()
+    return row or 0
+
+
+async def _msg_dict_full(db, m: ChatMessage) -> dict:
+    """Return a ChatMessage dict enriched with reactions and reply_count."""
+    return {
+        **_msg_dict(m),
+        "reactions": await _msg_reactions(db, m.id),
+        "reply_count": await _msg_reply_count(db, m.id),
+    }
+
+
 @app.websocket("/ws/{room}")
 async def websocket_endpoint(room: str, ws: WebSocket):
     """
-    Room-based WebSocket endpoint.
+    Room-based WebSocket endpoint implementing the v2 WS contract.
 
-    On connect: replays the last 50 persisted messages so the client
-    is immediately caught up (missed-message replay).
+    On connect:
+      - Sends a ``connected`` ack frame with the last 20 persisted messages
+        (enriched with reactions and reply counts).
+      - Broadcasts a ``presence`` frame to the room.
 
-    While connected: receives JSON frames, persists each to the DB as
-    a ChatMessage, then broadcasts the full message dict to all clients
-    in the same room.
+    Supported client→server frame types:
+      ``auth``      — acknowledged, no-op (token ignored in v2).
+      ``message``   — persisted and broadcast as ``{type: "message", data: {...}}``.
+      ``react``     — stored in DB; updated reaction map broadcast.
+      ``unreact``   — removed from DB; updated reaction map broadcast.
+      ``typing``    — relayed to all *other* clients in the room.
+      ``ping``      — answered with ``pong``.
     """
+    agent_name = "unknown"
     await manager.connect(room, ws)
-    # Send last 50 messages from DB on connect (missed-message replay)
+
     async with SessionLocal() as db:
         q = (
             select(ChatMessage)
             .where(ChatMessage.channel == room)
             .order_by(ChatMessage.timestamp.desc())
-            .limit(50)
+            .limit(20)
         )
         rows = (await db.execute(q)).scalars().all()
-        for msg in reversed(rows):
-            await ws.send_json(_msg_dict(msg))
+        recent = [await _msg_dict_full(db, m) for m in reversed(rows)]
+
+    await ws.send_json({"type": "connected", "room": room, "agent": agent_name, "recent_messages": recent})
+
     try:
         while True:
             data = await ws.receive_json()
-            # Persist to DB
-            async with SessionLocal() as db:
-                msg = ChatMessage(
-                    id=uuid.uuid4().hex[:8],
-                    channel=room,
-                    sender=data.get("sender", "unknown"),
-                    content=data.get("content", ""),
-                    type=data.get("type", "chat"),
-                    thread_id=data.get("thread_id"),
-                )
-                db.add(msg)
-                await db.commit()
-                await db.refresh(msg)
-            # Broadcast to room
-            await manager.broadcast(room, _msg_dict(msg))
+            frame_type = data.get("type", "message")
+
+            if frame_type == "auth":
+                agent_name = data.get("agent", agent_name) or agent_name
+                # Broadcast presence to the room
+                await manager.broadcast(room, {"type": "presence", "room": room, "agent": agent_name, "status": "online"})
+
+            elif frame_type == "message":
+                async with SessionLocal() as db:
+                    msg = ChatMessage(
+                        id=uuid.uuid4().hex[:8],
+                        channel=room,
+                        sender=data.get("sender", agent_name),
+                        content=data.get("content", ""),
+                        type=data.get("message_type", "chat"),
+                        thread_id=data.get("thread_id"),
+                    )
+                    db.add(msg)
+                    await db.commit()
+                    await db.refresh(msg)
+                    enriched = await _msg_dict_full(db, msg)
+                # Notify thread parent of new reply count
+                if msg.thread_id:
+                    async with SessionLocal() as db:
+                        reply_count = await _msg_reply_count(db, msg.thread_id)
+                    await manager.broadcast(room, {
+                        "type": "thread_reply",
+                        "room": room,
+                        "parent_id": msg.thread_id,
+                        "reply_count": reply_count,
+                        "latest_reply": enriched,
+                    })
+                await manager.broadcast(room, {"type": "message", "room": room, "data": enriched})
+
+            elif frame_type in ("react", "unreact"):
+                message_id = data.get("message_id", "")
+                reactor = data.get("reactor", agent_name)
+                reaction = data.get("reaction", "")
+                if message_id and reaction:
+                    async with SessionLocal() as db:
+                        if frame_type == "react":
+                            existing = (
+                                await db.execute(
+                                    select(MessageReaction).where(
+                                        MessageReaction.message_id == message_id,
+                                        MessageReaction.reactor_id == reactor,
+                                        MessageReaction.reaction_type == reaction,
+                                    )
+                                )
+                            ).scalar_one_or_none()
+                            if not existing:
+                                db.add(MessageReaction(
+                                    message_id=message_id,
+                                    reactor_id=reactor,
+                                    reaction_type=reaction,
+                                ))
+                                await db.commit()
+                        else:  # unreact
+                            existing = (
+                                await db.execute(
+                                    select(MessageReaction).where(
+                                        MessageReaction.message_id == message_id,
+                                        MessageReaction.reactor_id == reactor,
+                                        MessageReaction.reaction_type == reaction,
+                                    )
+                                )
+                            ).scalar_one_or_none()
+                            if existing:
+                                await db.delete(existing)
+                                await db.commit()
+                        reactions = await _msg_reactions(db, message_id)
+                    await manager.broadcast(room, {
+                        "type": "reaction",
+                        "room": room,
+                        "message_id": message_id,
+                        "reactions": reactions,
+                    })
+
+            elif frame_type == "typing":
+                # Relay to everyone in the room (including sender — client ignores own)
+                await manager.broadcast(room, {
+                    "type": "typing",
+                    "room": room,
+                    "agent": data.get("agent", agent_name),
+                    "is_typing": data.get("is_typing", False),
+                })
+
+            elif frame_type == "ping":
+                await ws.send_json({"type": "pong"})
+
     except WebSocketDisconnect:
         manager.disconnect(room, ws)
+        # Notify room of offline presence
+        await manager.broadcast(room, {"type": "presence", "room": room, "agent": agent_name, "status": "offline"})
 
 
 # ── Pydantic request models ────────────────────────────────────────────────────
@@ -390,13 +515,22 @@ async def log_tokens(req: LogTokensRequest):
 
 
 @app.get("/api/tokens/{agent}/budget")
+@app.get("/api/v2/tokens/{agent}/budget")
 async def check_budget(agent: str):
     async with SessionLocal() as db:
         rows = (await db.execute(
             select(TokenUsage).where(TokenUsage.agent == agent)
         )).scalars().all()
+        total_input = sum(r.input_tokens or 0 for r in rows)
+        total_output = sum(r.output_tokens or 0 for r in rows)
         total_cost = sum(r.cost_usd or 0.0 for r in rows)
-    return {"agent": agent, "total_cost_usd": total_cost, "ok": True}
+    return {
+        "agent": agent,
+        "total_cost_usd": total_cost,
+        "total_input_tokens": total_input,
+        "total_output_tokens": total_output,
+        "ok": True,
+    }
 
 
 # ── RAG (Phase 1: stub; Phase 2: real embeddings) ─────────────────────────────
