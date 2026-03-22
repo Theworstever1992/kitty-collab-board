@@ -159,6 +159,42 @@ def build_layout(agents, tasks, ideas, violations) -> Layout:
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
+async def print_status_snapshot():
+    """Fetch data from the v2 API and print a one-shot status snapshot."""
+    agents, tasks, ideas, violations = await fetch_all()
+
+    by_status: dict[str, int] = {}
+    for t in tasks:
+        s = t.get("status", "unknown")
+        by_status[s] = by_status.get(s, 0) + 1
+
+    print("🐱 Clowder v2 Status Snapshot")
+    print("=" * 40)
+    print(f"\n🤖 Agents ({len(agents)}):")
+    for a in agents:
+        print(f"    {a.get('name', '?'):15} status={a.get('status', '?')}")
+    if not agents:
+        print("    (none — API may be offline)")
+
+    print(f"\n📌 Tasks ({len(tasks)} total):")
+    for s, count in sorted(by_status.items()):
+        print(f"    {s:12}: {count}")
+    if not tasks:
+        print("    (none)")
+
+    print(f"\n💡 Ideas ({len(ideas)}):")
+    pending_ideas = [i for i in ideas if i.get("status") == "pending"]
+    print(f"    pending={len(pending_ideas)}  total={len(ideas)}")
+
+    print(f"\n🚨 Violations ({len(violations)}):")
+    if violations:
+        for v in violations[:5]:
+            print(f"    [{v.get('severity','?')}] {v.get('violation_type','?')} — {v.get('agent_id','?')}")
+    else:
+        print("    (none)")
+    print()
+
+
 async def run_tui():
     if not HAS_RICH:
         print("Install rich: pip install rich")
@@ -173,6 +209,9 @@ async def run_tui():
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "status":
+        asyncio.run(print_status_snapshot())
+        return
     try:
         asyncio.run(run_tui())
     except KeyboardInterrupt:

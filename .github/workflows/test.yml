@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Security scan (detect obfuscated exec backdoors)
+        run: python3 scripts/security_scan.py
+
       - name: Wait for Postgres
         run: |
           until pg_isready -h localhost -p 5433 -U clowder; do

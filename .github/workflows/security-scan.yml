@@ -1,0 +1,47 @@
+name: Security Scan
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  scan-obfuscated-exec:
+    name: Detect obfuscated exec() payloads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for obfuscated exec patterns in Python files
+        run: |
+          echo "Scanning for obfuscated exec/eval patterns..."
+
+          FAIL=0
+
+          # Pattern 1: exec(compile(...)) — the exact backdoor pattern found in this repo
+          if grep -rn "exec(compile(" . --include="*.py" | grep -v "^./tests/" | grep -v "^./.git/"; then
+            echo "::error::Found exec(compile(...)) in Python source — potential backdoor"
+            FAIL=1
+          fi
+
+          # Pattern 2: __import__ of base64 or zlib alongside exec/eval
+          if grep -rn "__import__.*base64\|__import__.*zlib" . --include="*.py" | grep -v "^./tests/" | grep -v "^./.git/"; then
+            echo "::error::Found __import__('base64'/__import__('zlib') — possible obfuscation setup"
+            FAIL=1
+          fi
+
+          # Pattern 3: eval of dynamic/decoded content
+          if grep -rn "eval(.*b64decode\|eval(.*decompress\|eval(.*decode\b" . --include="*.py" | grep -v "^./tests/" | grep -v "^./.git/"; then
+            echo "::error::Found eval() of decoded/decompressed content — suspicious"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo ""
+            echo "Security scan FAILED. Review the flagged lines before merging."
+            echo "See SECURITY.md for background on the supply-chain attack this detects."
+            exit 1
+          fi
+
+          echo "Security scan passed — no obfuscated exec patterns found."
