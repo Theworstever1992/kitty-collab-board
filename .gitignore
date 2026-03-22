@@ -32,9 +32,9 @@ logs/
 # Environment
 .env
 
-# AI agent instruction files (local use only, not for distribution)
-CLAUDE.md
-GEMINI.md
+# AI agent instruction files — CLAUDE.md and GEMINI.md are committed to the repo
+# so that Claude Code and Gemini CLI automatically pick up project context.
+# Other agent files remain local-only.
 QWEN.md
 NATURAL_LANGUAGE.md
 STANDING_ORDERS.md

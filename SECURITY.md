@@ -362,6 +362,75 @@ identification details, treat those as exposed.
 
 ---
 
+## Was This Targeting Windows or Linux?
+
+**Primary target: Windows.** The payload ran on all three platforms, but the
+evidence overwhelmingly shows Windows users were the intended victims.
+
+### Evidence That Windows Was the Primary Target
+
+#### 1 — A Windows EXE was being built
+
+The same fake author (`Avery <avery@example.com>`) added
+`windows/meowzon.spec` 28 minutes *before* injecting the malicious code.
+That file is a **PyInstaller spec** that packages `meow.py` into a standalone
+Windows executable called `Meowzon.exe`:
+
+```
+name='Meowzon'          ← Windows EXE name
+console=True            ← runs in a console window
+upx=True                ← compressed with UPX (common in malware distribution)
+```
+
+This means the attacker was preparing to distribute `Meowzon.exe` to Windows
+users who do not have Python installed — the EXE bundles Python and all
+dependencies so any Windows user can double-click it.
+
+#### 2 — The malicious CLAUDE.md was Windows-focused
+
+The same commit (`53e4b84`) that injected the payload also added a `CLAUDE.md`
+that contained exclusively Windows/PowerShell instructions:
+
+- `python meow.py spawn   # spawn agents via PowerShell (Windows only)`
+- `Get-Job | Stop-Job; Get-Job | Remove-Job` (PowerShell job management)
+- `wake_up.py "prints PowerShell alias commands"`
+
+This was the social-engineering layer: Windows users following these
+instructions would naturally run `meow.py`, triggering the payload.
+
+#### 3 — `CREATE_NO_WINDOW` is a Windows-only flag
+
+The payload used `subprocess.CREATE_NO_WINDOW` when launching Node.js — a
+Windows API constant that hides the console window so nothing appears on
+screen. This extra care to stay hidden on Windows indicates Windows users were
+the expected audience.
+
+#### 4 — Cross-platform Node.js downloads were included as a fallback
+
+The payload downloaded Node.js for Windows x64/x86, macOS arm64/x64, and
+Linux arm64/x64. Supporting other platforms is common practice in
+professional malware kits — it costs nothing extra and catches any non-Windows
+machines that also run the script.
+
+---
+
+### What This Means for You
+
+| If you ran `meow.py` on… | Risk level | Notes |
+|--------------------------|-----------|-------|
+| **Windows** | ⚠️ **Highest** — you were the exact intended target | The EXE packaging was built for you |
+| **macOS** | High — payload is fully cross-platform | Same IoCs apply |
+| **Linux** | High — payload is fully cross-platform | Same IoCs apply |
+| Any platform with Russian locale | Low | Payload skips Russian-locale systems |
+
+**Regardless of OS:** if `~/init.json` (or `%USERPROFILE%\init.json` on
+Windows) exists, the payload ran on that machine. See the
+**Is My Device Compromised?** section above for OS-specific detection commands.
+
+---
+
+## Automated Safeguards Added
+
 A security scan (`scripts/security_scan.py`) runs in CI on every push and PR.
 It rejects code containing:
 
