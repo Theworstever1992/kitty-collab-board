@@ -10,7 +10,7 @@
       {{ emoji }} <span class="count">{{ reactors.length }}</span>
     </button>
     <div class="emoji-picker-wrapper">
-      <button class="add-btn" @click="showPicker = !showPicker" title="Add reaction">+</button>
+      <button class="add-btn" @click="showPicker = !showPicker" title="Add reaction" aria-label="Add reaction" :aria-expanded="showPicker">+</button>
       <div v-if="showPicker" class="emoji-picker">
         <button v-for="e in REACTIONS" :key="e" @click="pick(e)">{{ e }}</button>
       </div>

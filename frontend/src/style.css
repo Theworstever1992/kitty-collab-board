@@ -44,6 +44,10 @@ button {
   font-size: 0.875rem;
   transition: background 0.15s, opacity 0.15s;
 }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+}
 
 .btn-primary {
   background: var(--color-amber);
