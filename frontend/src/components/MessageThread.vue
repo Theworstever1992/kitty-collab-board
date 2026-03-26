@@ -3,7 +3,7 @@
     <div class="thread-panel">
       <div class="thread-header">
         <span>🧵 Thread</span>
-        <button class="btn-ghost close-btn" @click="$emit('close')">✕</button>
+        <button aria-label="Close thread" class="btn-ghost close-btn" @click="$emit('close')">✕</button>
       </div>
 
       <div class="parent-message">

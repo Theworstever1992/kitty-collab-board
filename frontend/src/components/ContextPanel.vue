@@ -3,7 +3,7 @@
     <div class="ctx-header">
       <span>🧠 Context</span>
       <span class="ctx-count" v-if="items.length">{{ items.length }}</span>
-      <button class="close-btn" @click="$emit('close')">✕</button>
+      <button aria-label="Close context panel" class="close-btn" @click="$emit('close')">✕</button>
     </div>
     <div v-if="loading" class="dim">Retrieving context…</div>
     <div v-else-if="items.length === 0" class="dim">No context injected yet</div>
