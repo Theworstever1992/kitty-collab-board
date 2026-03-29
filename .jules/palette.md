@@ -1,0 +1,3 @@
+## 2024-05-24 - Icon Buttons without ARIA Labels
+**Learning:** Found multiple instances where icon-only buttons (like ✕ and + buttons in MessageThread, ContextPanel, IdeasFeed, and ReactionBar) lacked `aria-label` attributes, rendering them inaccessible to screen readers. Relying only on visual icons or a `title` attribute is insufficient for a11y.
+**Action:** When creating or reviewing components with icon-only controls, always verify an `aria-label` attribute is present to clearly describe the button's action to assistive technologies.
