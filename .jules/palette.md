@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessibility pattern for closing elements
+**Learning:** Found multiple close buttons across the Clowder frontend lacking `aria-label`s. Screen readers might only announce "✕" or "button" without context, making it hard for users navigating with assistive technologies to know what they are closing.
+**Action:** Always verify that icon-only buttons (like `✕` for close buttons) have descriptive `aria-label` attributes to ensure screen reader accessibility.
