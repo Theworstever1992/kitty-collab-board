@@ -8,7 +8,7 @@
     <div class="idea-title">{{ idea.title }}</div>
     <div class="idea-body" v-if="idea.body">{{ idea.body.slice(0, 140) }}{{ idea.body.length > 140 ? '…' : '' }}</div>
     <div class="idea-footer">
-      <button class="vote-btn" :class="{ voted: idea.user_voted }" @click.stop="vote">
+      <button class="vote-btn" aria-label="Vote for idea" :class="{ voted: idea.user_voted }" @click.stop="vote">
         🐾 {{ idea.reaction_count }}
       </button>
       <span class="idea-age">{{ age }}</span>
