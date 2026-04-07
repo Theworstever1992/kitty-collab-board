@@ -174,3 +174,64 @@ def test_file_backend_satisfies_protocol(board_dir):
     from agents.backend_protocol import BoardBackend
     _, fb = board_dir
     assert isinstance(fb, BoardBackend)
+
+
+# ── show_status ───────────────────────────────────────────────────────────────
+
+def test_show_status_empty_board(board_dir, monkeypatch, capsys):
+    """show_status prints a status summary even when board files are absent."""
+    tmp, _ = board_dir
+    monkeypatch.setenv("CLOWDER_BOARD_DIR", str(tmp))
+    from meow import show_status
+    show_status()
+    out = capsys.readouterr().out
+    assert "Board Status" in out
+    assert "Channels" in out
+    assert "Agents" in out
+    assert "Tasks" in out
+    assert "Manager" in out
+
+
+def test_show_status_with_data(board_dir, monkeypatch, capsys, tmp_path):
+    """show_status reflects channels, agents, tasks and manager written to board."""
+    import json
+    tmp, _ = board_dir
+
+    # Channels
+    channels_file = tmp / ".channels.json"
+    channels_file.write_text(json.dumps({
+        "channels": {"general": {"name": "general", "description": "Main chat"}}
+    }), encoding="utf-8")
+
+    # Agents
+    agents_file = tmp / "agents.json"
+    agents_file.write_text(json.dumps([
+        {"name": "qwen", "role": "developer", "status": "online"}
+    ]), encoding="utf-8")
+
+    # Tasks
+    board_file = tmp / "board.json"
+    board_file.write_text(json.dumps({
+        "tasks": [
+            {"id": "t1", "title": "Task A", "status": "pending"},
+            {"id": "t2", "title": "Task B", "status": "done"},
+        ]
+    }), encoding="utf-8")
+
+    # Manager
+    manager_file = tmp / ".manager.json"
+    manager_file.write_text(json.dumps({
+        "current": {"agent": "qwen", "assigned_by": "human", "status": "active"}
+    }), encoding="utf-8")
+
+    monkeypatch.setenv("CLOWDER_BOARD_DIR", str(tmp))
+    from meow import show_status
+    show_status()
+    out = capsys.readouterr().out
+
+    assert "#general" in out
+    assert "qwen" in out
+    assert "2 total" in out
+    # Verify individual status counts appear in the breakdown
+    assert "pending" in out and ": 1" in out
+    assert "done" in out

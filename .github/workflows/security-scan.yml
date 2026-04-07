@@ -1,0 +1,19 @@
+name: Security Scan
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  scan-obfuscated-exec:
+    name: Detect obfuscated exec() payloads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Python security scanner
+        run: |
+          echo "Running Python-based security scanner..."
+          python3 scripts/security_scan.py
