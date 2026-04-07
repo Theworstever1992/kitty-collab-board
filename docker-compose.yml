@@ -1,6 +1,12 @@
 # Kitty Collab Board — Docker Compose
 # v1: file-based chat (port 8080) always on
 # v2: PostgreSQL API (port 9000) via --profile v2
+#
+# SECURITY: Before running in production:
+#  1. Copy .env.example to .env and set strong POSTGRES_USER / POSTGRES_PASSWORD values.
+#  2. Set CLOWDER_DEBUG=false in the api service environment section.
+#  3. Restrict postgres port binding to 127.0.0.1 (change "5432:5432" to "127.0.0.1:5432:5432").
+#  4. Never use the default clowder:clowder credentials outside of local development.
 
 services:
   # PostgreSQL + pgvector (v2 Test Database)
@@ -53,12 +59,15 @@ services:
       - "9000:9000"
     volumes:
       - ./board:/app/board:rw
+      # NOTE: Mounting the full project root exposes .env and .git to the container.
+      # In production, mount only the directories each service specifically needs.
       - ./:/app:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://clowder:clowder@postgres:5432/clowder
       - CLOWDER_BOARD_DIR=/app/board
       - CLOWDER_API_PORT=9000
-      - CLOWDER_DEBUG=true
+      # WARNING: Set CLOWDER_DEBUG=false in production to prevent stack-trace leakage.
+      - CLOWDER_DEBUG=false
     depends_on:
       postgres:
         condition: service_healthy

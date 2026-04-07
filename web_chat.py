@@ -29,11 +29,15 @@ CHANNELS_DIR = BOARD_DIR / "channels"
 
 app = FastAPI(title="Kitty Collab Board Chat")
 
-# CORS - allow all origins (local only)
+# CORS — allow all origins for local/LAN development only.
+# In production, replace allow_origins=["*"] with an explicit list of trusted origins.
+# Note: allow_credentials MUST be False when allow_origins=["*"] — combining both
+# is a security misconfiguration (browsers will reject such responses and it opens
+# credential-theft attack vectors).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

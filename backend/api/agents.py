@@ -2,7 +2,9 @@
 agents.py — Agent profile endpoints with avatar SVG validation.
 """
 
-import xml.etree.ElementTree as ET
+# defusedxml protects against XXE, billion-laughs, and other XML injection attacks.
+# This is a security-conscious drop-in replacement for xml.etree.ElementTree.
+import defusedxml.ElementTree as ET
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -31,7 +33,8 @@ def validate_avatar_svg(svg_text: str) -> None:
 
     Checks:
     - Size must not exceed 50 KB (51,200 bytes).
-    - Must be well-formed XML parseable by ElementTree.
+    - Must be well-formed XML parseable by defusedxml (protects against XXE and
+      other XML injection attacks).
     - Root element must be <svg> (with or without namespace prefix).
 
     Raises HTTPException(422) on any violation.
