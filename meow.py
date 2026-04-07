@@ -269,7 +269,23 @@ def show_status():
     if agents_file.exists():
         try:
             agents_data = json.loads(agents_file.read_text(encoding="utf-8"))
-            agents = agents_data if isinstance(agents_data, list) else agents_data.get("agents", [])
+            if isinstance(agents_data, list):
+                agents = agents_data
+            elif isinstance(agents_data, dict):
+                # Support both {"agents": [...]} and v1 dict-of-agents {"name": {...}}
+                if "agents" in agents_data and isinstance(agents_data["agents"], list):
+                    agents = agents_data["agents"]
+                else:
+                    agents = []
+                    for agent_name, agent_data in agents_data.items():
+                        if isinstance(agent_data, dict):
+                            entry = dict(agent_data)
+                        else:
+                            entry = {"data": agent_data}
+                        entry.setdefault("name", agent_name)
+                        agents.append(entry)
+            else:
+                agents = []
         except (json.JSONDecodeError, OSError):
             agents = []
     else:
