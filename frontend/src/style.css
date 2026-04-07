@@ -45,6 +45,11 @@ button {
   transition: background 0.15s, opacity 0.15s;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: var(--color-amber);
   color: var(--color-bg);
