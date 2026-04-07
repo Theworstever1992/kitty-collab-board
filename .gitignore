@@ -28,6 +28,8 @@ board/
 
 # Logs
 logs/
+*.log
+firebase-debug.log
 
 # Environment
 .env
